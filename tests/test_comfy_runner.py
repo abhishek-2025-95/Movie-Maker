@@ -8,12 +8,22 @@ def test_apply_scene_injects_prompt_and_seed():
         "3": {"class_type": "KSampler", "inputs": {"seed": 1}},
         "12": {"class_type": "SaveImage", "inputs": {"filename_prefix": "x"}},
     }
+    node_map = {
+        "positive_prompt": "6",
+        "negative_prompt": "7",
+        "ksampler_seed": "3",
+        "save_prefix": "12",
+        "ipadapter_image": None,
+        "width": None,
+        "height": None,
+    }
     out = apply_scene_to_workflow(
         workflow,
         visual_prompt="neon alley",
         motion_prompt="slow pan left",
         filename_prefix="dx_test",
         seed=42,
+        node_map=node_map,
     )
     assert "neon alley" in out["6"]["inputs"]["text"]
     assert "slow pan left" in out["6"]["inputs"]["text"]

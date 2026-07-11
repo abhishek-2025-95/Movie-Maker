@@ -43,30 +43,49 @@ def _set_input(workflow: dict, node_id: str | None, key: str, value: Any) -> boo
     return True
 
 
+def _set_all_seeds(workflow: dict[str, Any], seed: int) -> None:
+    for node in workflow.values():
+        if not isinstance(node, dict):
+            continue
+        if node.get("class_type") not in {"KSampler", "KSamplerAdvanced", "RandomNoise"}:
+            continue
+        inputs = node.setdefault("inputs", {})
+        if "seed" in inputs:
+            inputs["seed"] = seed
+        if "noise_seed" in inputs:
+            inputs["noise_seed"] = seed
+
+
 def apply_scene_to_workflow(
     workflow: dict[str, Any],
     *,
     visual_prompt: str,
-    motion_prompt: str,
+    motion_prompt: str = "",
     filename_prefix: str,
     seed: int | None = None,
     width: int | None = None,
     height: int | None = None,
     reference_image_name: str | None = None,
+    node_map: dict | None = None,
+    include_motion_in_prompt: bool = True,
 ) -> dict[str, Any]:
     """Return a deep-copied workflow with dynamic fields injected."""
     wf = json.loads(json.dumps(workflow))
-    nm = config.NODE_MAP
+    nm = node_map or config.NODE_MAP
     seed = seed if seed is not None else random.randint(1, 2_147_483_647)
 
-    positive = f"{visual_prompt}, {motion_prompt}, {config.CINEMATIC_SUFFIX}"
+    if include_motion_in_prompt and motion_prompt:
+        positive = f"{visual_prompt}, {motion_prompt}, {config.CINEMATIC_SUFFIX}"
+    else:
+        positive = f"{visual_prompt}, {config.CINEMATIC_SUFFIX}"
+
     _set_input(wf, nm.get("positive_prompt"), "text", positive)
     _set_input(wf, nm.get("negative_prompt"), "text", config.NEGATIVE_PROMPT)
 
-    # Common seed field names across samplers
+    _set_all_seeds(wf, seed)
+    # Also honor mapped sampler if present
     for seed_key in ("seed", "noise_seed"):
-        if _set_input(wf, nm.get("ksampler_seed"), seed_key, seed):
-            break
+        _set_input(wf, nm.get("ksampler_seed"), seed_key, seed)
 
     for prefix_key in ("filename_prefix", "filename"):
         if _set_input(wf, nm.get("save_prefix"), prefix_key, filename_prefix):
@@ -77,7 +96,7 @@ def apply_scene_to_workflow(
     if height is not None:
         _set_input(wf, nm.get("height"), "height", height)
 
-    # Character consistency: LoadImage node expects filename inside ComfyUI input folder
+    # Start image / character ref (LoadImage)
     if reference_image_name:
         _set_input(wf, nm.get("ipadapter_image"), "image", reference_image_name)
 

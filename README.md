@@ -23,16 +23,22 @@ Dry-run validates the orchestrator with placeholder clips + TTS (no ComfyUI need
 
 ## Production path (best quality)
 
-1. `powershell -ExecutionPolicy Bypass -File .\scripts\install_comfy_nodes.ps1`
-2. Download Flux FP8/GGUF + encoders (see `scripts/download_models.md`)
-3. Build Flux→Wan graph in ComfyUI, export **API Format** → `workflow_api.json` in this folder
-4. Map node IDs in `config.py` (`NODE_MAP`)
-5. Optional: `pip install TTS` + put `assets/voices/default.wav`
-6. Edit `topics.txt`, start ComfyUI + Ollama, then:
+1. `powershell -ExecutionPolicy Bypass -File .\scripts\install_comfy_nodes.ps1` *(already run)*
+2. Download Flux + Wan LoRAs:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\download_flux.ps1
+```
+
+3. API workflows are pre-built (`workflows/flux_t2i_api.json`, `workflows/wan_i2v_api.json`) with `NODE_MAP_*` wired in `config.py`. Re-generate anytime with `python scripts\build_workflow_api.py`.
+4. Optional: `pip install TTS` + put `assets/voices/default.wav`
+5. Start **ComfyUI** + **Ollama**, edit `topics.txt`, then:
 
 ```powershell
 python main.py
 ```
+
+Two-stage (default): **Flux still → Wan 2.2 I2V → MoviePy**.
 
 ## Topic format
 
