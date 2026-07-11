@@ -1,0 +1,17 @@
+__pycache__/
+.venv/
+venv/
+.env
+*.pyc
+temp/
+final_outputs/
+*.mp4
+*.wav
+*.pt
+*.safetensors
+*.ckpt
+.DS_Store
+Thumbs.db
+assets/voices/*.wav
+!assets/voices/README.md
+workflow_api.json

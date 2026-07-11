@@ -1,0 +1,1 @@
+mode:faceless ratio:9:16 lang:en | Dry run smoke test for DirectorX pipeline
