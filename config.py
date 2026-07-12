@@ -35,18 +35,31 @@ SECONDS_PER_SCENE = 5
 FPS = 24
 
 RATIO_SIZES = {
-    # Generation sizes tuned for RTX 5070 12GB (editor still outputs target aspect)
-    "9:16": (576, 1024),
-    "16:9": (1024, 576),
+    # Premium Flux stills (9:16 / 16:9) — FP8 fits 12GB sequentially
+    "9:16": (768, 1344),
+    "16:9": (1344, 768),
 }
 
-# Wan I2V native sizes / frames (keep modest for VRAM)
+# Final deliverable canvas after assemble / upscale
+OUTPUT_SIZES = {
+    "9:16": (1080, 1920),
+    "16:9": (1920, 1080),
+}
+
+# Wan I2V stays lower-res for VRAM safety; we upscale on export
 WAN_SIZES = {
     "9:16": (480, 832),
     "16:9": (832, 480),
 }
 WAN_LENGTH = 81  # ~5s at 16fps × 8 scenes ≈ 40s final video
-FLUX_STEPS = 12  # quality/speed balance on 5070
+FLUX_STEPS = 22  # sharper textures; still sequential-safe on 5070
+
+# Caption / export premium pass
+CAPTION_COLOR = "yellow"  # CapCut classic
+CAPTION_STROKE = "black"
+EXPORT_PRESET = "slow"
+EXPORT_BITRATE = "15000k"
+UPSCALE_ON_EXPORT = True  # lanczos → OUTPUT_SIZES after assemble
 
 # Cinematic modifiers appended to every Flux / Wan positive prompt
 CINEMATIC_SUFFIX = (

@@ -82,6 +82,11 @@ def apply_scene_to_workflow(
     _set_input(wf, nm.get("positive_prompt"), "text", positive)
     _set_input(wf, nm.get("negative_prompt"), "text", config.NEGATIVE_PROMPT)
 
+    # Flux quality: inject configured sampler steps when present
+    steps = getattr(config, "FLUX_STEPS", None)
+    if steps and nm.get("ksampler_seed"):
+        _set_input(wf, nm.get("ksampler_seed"), "steps", int(steps))
+
     _set_all_seeds(wf, seed)
     # Also honor mapped sampler if present
     for seed_key in ("seed", "noise_seed"):

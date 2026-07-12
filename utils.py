@@ -116,6 +116,33 @@ def get_history(prompt_id: str, server_address: str | None = None) -> dict:
     return http_get_json(f"http://{server}/history/{prompt_id}")
 
 
+def free_comfyui_memory(
+    server_address: str | None = None,
+    *,
+    unload_models: bool = True,
+    free_memory: bool = True,
+) -> None:
+    """Ask ComfyUI to unload models / free VRAM between sequential stages."""
+    import urllib.request
+
+    server = server_address or config.COMFYUI_HOST
+    payload = json.dumps(
+        {"unload_models": unload_models, "free_memory": free_memory}
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"http://{server}/free",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp.read()
+    except Exception:
+        pass
+    time.sleep(1.5)
+
+
 def comfyui_reachable(server_address: str | None = None) -> bool:
     server = server_address or config.COMFYUI_HOST
     try:

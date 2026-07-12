@@ -23,7 +23,7 @@ from comfy_runner import (
 )
 from director import Screenplay, TopicJob, generate_screenplay
 from editor import assemble_video
-from utils import new_client_id
+from utils import new_client_id, free_comfyui_memory
 from voice import synthesize
 
 log = logging.getLogger(__name__)
@@ -164,6 +164,9 @@ def run_topic(job: TopicJob, *, dry_run: bool = False, client_id: str | None = N
                 if job.mode == "character" and idx == 0:
                     character_ref = stage_reference_image(still_local, f"ref_{slug}.png")
 
+                # Flush VRAM before Wan (12GB sequential safety)
+                free_comfyui_memory(unload_models=True, free_memory=True)
+
                 # Stage B — Wan I2V from that still
                 wan_wf = apply_scene_to_workflow(
                     wan_template,
@@ -179,6 +182,7 @@ def run_topic(job: TopicJob, *, dry_run: bool = False, client_id: str | None = N
                     _set_input(wan_wf, config.NODE_MAP_WAN["width"], "length", wan_length)
                 _pid2, wan_outs = run_workflow(wan_wf, client_id=cid)
                 best = pick_best_output(wan_outs, prefix)
+                free_comfyui_memory(unload_models=True, free_memory=True)
             else:
                 assert single_template is not None
                 wf = apply_scene_to_workflow(

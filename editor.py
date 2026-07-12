@@ -1,11 +1,12 @@
-"""Programmatic assembly: concat clips, voice, optional BGM + captions."""
+"""Programmatic assembly: concat clips, voice, optional BGM + CapCut-style captions."""
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
 
 # Pillow>=10 removed Image.ANTIALIAS; MoviePy 1.0.3 still references it.
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 if not hasattr(Image, "ANTIALIAS"):
     Image.ANTIALIAS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
@@ -25,15 +26,15 @@ def _first_bgm() -> Path | None:
     return None
 
 
-def _load_font(size: int = 42) -> ImageFont.ImageFont:
+def _load_font(size: int = 65) -> ImageFont.ImageFont:
     candidates = [
-        r"C:\Windows\Fonts\segoeuib.ttf",  # Segoe UI Bold — cleaner short-form look
-        r"C:\Windows\Fonts\seguisb.ttf",
+        str(config.ROOT / "assets" / "fonts" / "Montserrat-Bold.ttf"),
+        r"C:\Windows\Fonts\impact.ttf",
         r"C:\Windows\Fonts\arialbd.ttf",
+        r"C:\Windows\Fonts\segoeuib.ttf",
         r"C:\Windows\Fonts\NirmalaB.ttf",
         r"C:\Windows\Fonts\Nirmala.ttf",
         r"C:\Windows\Fonts\arial.ttf",
-        r"C:\Windows\Fonts\tahoma.ttf",
     ]
     for path in candidates:
         if Path(path).exists():
@@ -45,7 +46,7 @@ def _load_font(size: int = 42) -> ImageFont.ImageFont:
 
 
 def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> int:
-    bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=6)
+    bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=8)
     return bbox[2] - bbox[0]
 
 
@@ -54,9 +55,9 @@ def wrap_caption_by_pixels(
     draw: ImageDraw.ImageDraw,
     font: ImageFont.ImageFont,
     max_width_px: int,
-    max_lines: int = 4,
+    max_lines: int = 3,
 ) -> str:
-    """Word-boundary wrap to a pixel width — never cuts mid-word with [:N]."""
+    """Word-boundary wrap to a pixel width — never cuts mid-word."""
     words = text.strip().replace("\n", " ").split()
     if not words:
         return ""
@@ -75,78 +76,128 @@ def wrap_caption_by_pixels(
             break
     if current and len(lines) < max_lines:
         lines.append(" ".join(current))
-
-    # If a single word is wider than the box, shrink is handled by caller via font size.
     return "\n".join(lines)
 
 
 def _fit_caption(
     text: str,
     draw: ImageDraw.ImageDraw,
-    frame_w: int,
     max_box_w: int,
 ) -> tuple[str, ImageFont.ImageFont]:
-    """Shrink font until full caption wraps cleanly within max lines / width."""
     raw = text.strip()
-    for size in (46, 42, 38, 34, 30, 26):
+    for size in (70, 65, 58, 52, 46, 40):
         font = _load_font(size)
-        wrapped = wrap_caption_by_pixels(raw, draw, font, max_box_w, max_lines=4)
-        # Verify no word was dropped: compare token counts loosely
-        if len(wrapped.replace("\n", " ").split()) >= min(len(raw.split()), 1):
-            # Prefer versions that keep almost all words
-            kept = len(wrapped.replace("\n", " ").split())
-            if kept >= len(raw.split()) or size <= 30:
-                if kept < len(raw.split()) and size > 26:
-                    continue
-                return wrapped, font
-    font = _load_font(26)
-    return wrap_caption_by_pixels(raw, draw, font, max_box_w, max_lines=5), font
+        wrapped = wrap_caption_by_pixels(raw, draw, font, max_box_w, max_lines=3)
+        kept = len(wrapped.replace("\n", " ").split())
+        if kept >= len(raw.split()):
+            return wrapped, font
+    font = _load_font(40)
+    return wrap_caption_by_pixels(raw, draw, font, max_box_w, max_lines=4), font
+
+
+def _parse_color(name: str) -> tuple[int, int, int, int]:
+    table = {
+        "yellow": (255, 230, 0, 255),
+        "white": (255, 255, 255, 255),
+        "black": (0, 0, 0, 255),
+    }
+    return table.get((name or "yellow").lower(), (255, 230, 0, 255))
 
 
 def _caption_overlay_clip(text: str, width: int, height: int, duration: float):
-    """Pillow-rendered caption — full text, word-safe wrap, stroked for readability."""
+    """CapCut-style caption: bold fill + black stroke + soft drop shadow, no box."""
     import numpy as np
     from moviepy.editor import ImageClip
 
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    max_box_w = int(width * 0.88)
-    wrapped, font = _fit_caption(text, draw, width, max_box_w)
+    max_box_w = int(width * 0.90)
+    wrapped, font = _fit_caption(text, draw, max_box_w)
 
     bbox = draw.multiline_textbbox((0, 0), wrapped, font=font, align="center", spacing=8)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     x = (width - tw) // 2
-    y = int(height * 0.76) - th // 2
-    pad_x, pad_y = 22, 16
+    y = int(height * 0.78) - th // 2
 
-    # Soft plate behind text (less "basic box", still readable on busy frames)
-    draw.rounded_rectangle(
-        (x - pad_x, y - pad_y, x + tw + pad_x, y + th + pad_y),
-        radius=18,
-        fill=(0, 0, 0, 140),
-    )
+    fill = _parse_color(getattr(config, "CAPTION_COLOR", "yellow"))
+    stroke = _parse_color(getattr(config, "CAPTION_STROKE", "black"))
 
-    # Stroke then fill for premium short-form readability
-    for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, 1)):
-        draw.multiline_text(
-            (x + ox, y + oy),
-            wrapped,
-            font=font,
-            fill=(0, 0, 0, 220),
-            align="center",
-            spacing=8,
-        )
-    draw.multiline_text(
-        (x, y),
+    # Soft drop shadow layer
+    shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    sdraw = ImageDraw.Draw(shadow)
+    sdraw.multiline_text(
+        (x + 4, y + 5),
         wrapped,
         font=font,
-        fill=(255, 255, 255, 255),
+        fill=(0, 0, 0, 160),
         align="center",
         spacing=8,
     )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=2))
+    img = Image.alpha_composite(img, shadow)
+    draw = ImageDraw.Draw(img)
+
+    # Thick outline (stroke) then yellow/white fill
+    for ox in range(-3, 4):
+        for oy in range(-3, 4):
+            if ox == 0 and oy == 0:
+                continue
+            if abs(ox) + abs(oy) > 5:
+                continue
+            draw.multiline_text(
+                (x + ox, y + oy),
+                wrapped,
+                font=font,
+                fill=stroke,
+                align="center",
+                spacing=8,
+            )
+    draw.multiline_text((x, y), wrapped, font=font, fill=fill, align="center", spacing=8)
 
     arr = np.array(img)
     return ImageClip(arr, ismask=False, transparent=True).set_duration(duration)
+
+
+def _ffmpeg_bin() -> str:
+    import shutil
+
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def _ffmpeg_upscale(src: Path, dest: Path, out_w: int, out_h: int) -> Path:
+    cmd = [
+        _ffmpeg_bin(),
+        "-y",
+        "-i",
+        str(src),
+        "-vf",
+        f"scale={out_w}:{out_h}:flags=lanczos",
+        "-c:v",
+        "libx264",
+        "-preset",
+        getattr(config, "EXPORT_PRESET", "slow"),
+        "-b:v",
+        getattr(config, "EXPORT_BITRATE", "15000k"),
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        str(dest),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return dest
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        log.warning("ffmpeg upscale skipped (%s); keeping assembled file", exc)
+        return src
 
 
 def assemble_video(
@@ -170,6 +221,7 @@ def assemble_video(
     if not clip_paths:
         raise ValueError("No video clips to assemble")
 
+    # Assemble at Flux canvas size; optional 1080p upscale after
     target_w, target_h = config.RATIO_SIZES.get(ratio, config.RATIO_SIZES["9:16"])
     video_clips = []
     for p in clip_paths:
@@ -221,13 +273,15 @@ def assemble_video(
             log.warning("Caption burn skipped: %s", exc)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    draft = out_path.with_name(out_path.stem + "_draft.mp4")
     video.write_videofile(
-        str(out_path),
+        str(draft),
         fps=config.FPS,
         codec="libx264",
         audio_codec="aac",
-        threads=4,
-        preset="medium",
+        threads=8,
+        preset=getattr(config, "EXPORT_PRESET", "slow"),
+        bitrate=getattr(config, "EXPORT_BITRATE", "15000k"),
         verbose=False,
         logger=None,
     )
@@ -235,4 +289,20 @@ def assemble_video(
     video.close()
     for c in video_clips:
         c.close()
+
+    if getattr(config, "UPSCALE_ON_EXPORT", False):
+        ow, oh = config.OUTPUT_SIZES.get(ratio, (1080, 1920))
+        final = _ffmpeg_upscale(draft, out_path, ow, oh)
+        if final == out_path and draft.exists() and draft != out_path:
+            try:
+                draft.unlink()
+            except OSError:
+                pass
+            return out_path
+        if final == draft:
+            draft.replace(out_path)
+            return out_path
+        return final
+
+    draft.replace(out_path)
     return out_path

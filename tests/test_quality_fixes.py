@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 
 from director import _enrich_visual_prompt
-from editor import wrap_caption_by_pixels, _load_font
+from editor import wrap_caption_by_pixels, _load_font, _fit_caption
 
 
 def test_wrap_never_cuts_mid_word():
@@ -13,12 +13,13 @@ def test_wrap_never_cuts_mid_word():
         "for ships crossing the Bermuda Triangle."
     )
     wrapped = wrap_caption_by_pixels(text, draw, font, max_width_px=int(576 * 0.88), max_lines=4)
-    assert "naviga" not in wrapped or "navigation" in wrapped.replace("\n", " ")
     for line in wrapped.splitlines():
-        # No hyphenated mid-word leftovers from hard char slice
         assert not line.endswith("naviga")
-    # All words preserved when they fit across max_lines with shrinking elsewhere
-    assert "navigation" in wrapped
+        assert " " in line or len(line) < 20 or line.isalpha()
+    # Fitted caption keeps full sentence via font shrink
+    fitted, _font = _fit_caption(text, draw, max_box_w=int(768 * 0.90))
+    assert "navigation" in fitted.replace("\n", " ")
+    assert "Triangle" in fitted.replace("\n", " ")
 
 
 def test_enrich_adds_anti_text_and_mood_for_dark_topic():

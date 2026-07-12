@@ -46,7 +46,7 @@ def flux_t2i_workflow() -> dict:
             "class_type": "KSampler",
             "inputs": {
                 "seed": 0,
-                "steps": 12,
+                "steps": 22,
                 "cfg": 3.5,
                 "sampler_name": "euler",
                 "scheduler": "simple",
@@ -151,7 +151,7 @@ def wan_i2v_workflow() -> dict:
                 "start_image": ["10", 0],
                 "width": 480,
                 "height": 832,
-                "length": 49,
+                "length": 81,
                 "batch_size": 1,
             },
         },
