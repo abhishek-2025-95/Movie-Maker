@@ -30,7 +30,7 @@ OLLAMA_MODEL = "llama3.1:8b"  # deepseek-r1:8b also available
 DEFAULT_MODE = "faceless"  # faceless | character
 DEFAULT_RATIO = "9:16"  # 9:16 | 16:9
 DEFAULT_LANG = "en"  # en | hi
-SCENES_PER_VIDEO = 2  # first production pass; raise to 6 after smoke succeeds
+SCENES_PER_VIDEO = 8  # ~40s Shorts-length storytelling
 SECONDS_PER_SCENE = 5
 FPS = 24
 
@@ -45,13 +45,14 @@ WAN_SIZES = {
     "9:16": (480, 832),
     "16:9": (832, 480),
 }
-WAN_LENGTH = 49  # ~3s at 16fps; safer than 81 on 12GB
+WAN_LENGTH = 81  # ~5s at 16fps × 8 scenes ≈ 40s final video
 FLUX_STEPS = 12  # quality/speed balance on 5070
 
-# Cinematic modifiers appended to every Flux prompt
+# Cinematic modifiers appended to every Flux / Wan positive prompt
 CINEMATIC_SUFFIX = (
     "cinematic lighting, photorealistic, 35mm film still, shallow depth of field, "
-    "high detail, no text, no watermark, no logo, no subtitles"
+    "high detail, clean frame, no text, no letters, no writing, no typography, "
+    "no watermark, no logo, no signage, no subtitles, no captions"
 )
 
 # --- ComfyUI node ID maps (from scripts/build_workflow_api.py) ---
@@ -79,9 +80,13 @@ NODE_MAP_WAN = {
 # Back-compat alias used when TWO_STAGE is False
 NODE_MAP = NODE_MAP_WAN
 
+# Hard negative conditioning — kill gibberish AI text / watermarks in-frame
 NEGATIVE_PROMPT = (
-    "blurry, low quality, deformed hands, extra fingers, watermark, text, logo, "
-    "subtitles, cartoon, anime (unless requested), oversaturated"
+    "text, typography, watermark, words, lettering, font, sign, logo, subtitle, "
+    "caption, title card, writing, alphabet, characters, glyphs, numbers overlay, "
+    "UI, HUD, poster text, newspaper headline, engraved letters, neon sign text, "
+    "blurry, low quality, deformed hands, extra fingers, oversaturated, "
+    "cartoon, anime (unless requested), static noise"
 )
 
 # Voice

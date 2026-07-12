@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="DirectorX local cinematic video factory")
     parser.add_argument("--dry-run", action="store_true", help="Skip ComfyUI/Ollama GPU path; placeholder clips")
     parser.add_argument("--topics", type=str, default=str(config.TOPICS_FILE), help="Path to topics file")
+    parser.add_argument("--limit", type=int, default=0, help="Process only first N topics (0 = all)")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
     setup_logging(args.verbose)
@@ -36,6 +37,9 @@ def main(argv: list[str] | None = None) -> int:
 
     topics_path = Path(args.topics)
     jobs = load_topics(topics_path)
+    if args.limit and args.limit > 0:
+        jobs = jobs[: args.limit]
+        log.info("Limit active: processing %s topic(s)", len(jobs))
     if not jobs:
         log.error("No topics found in %s", topics_path)
         return 1

@@ -102,13 +102,50 @@ Return ONLY valid JSON (no markdown) with this schema:
   ]
 }}
 Rules:
-- Exactly {scene_count} scenes.
+- Exactly {scene_count} scenes that tell a complete mini-story about the topic.
+- Scene 1 MUST hook the viewer and clearly name/introduce the topic in the first sentence.
 - Style: {style}, aspect mindset {job.ratio}.
-- Narration: natural spoken {lang_name}, ~12-22 words per scene, no stage directions.
-- visual_prompt: concrete, photographic, no text/logos/watermarks.
+- Narration: natural spoken {lang_name}, ~22-35 words per scene (enough for ~5 seconds of VO), no stage directions.
+- Build curiosity → explanation → payoff across scenes so a viewer understands the topic without reading the title.
+
+VISUAL-SCRIPT ALIGNMENT (critical):
+- Every visual_prompt MUST match the emotional tone of that scene's narration.
+- For dark / mysterious / danger / disappearance / conspiracy topics, prepend mood tags such as:
+  "moody lighting, mysterious atmosphere, historical archive footage feel, dramatic color grading, eerie tension".
+- NEVER pair ominous narration with serene, cheerful, touristy, or peaceful imagery
+  (e.g. do not show a calm sunny seaplane landing while talking about missing aircraft).
+- Prefer concrete, emotionally correct subjects: empty decks, storm seas, radar rooms,
+  searchlights, abandoned wreckage, fog, night ocean — not mismatched beauty shots.
+
+ANTI-TEXT (critical):
+- visual_prompt must describe a CLEAN photographic frame with ZERO readable text.
+- Explicitly forbid: signs, labels, captions, watermarks, logos, newspapers, UI, HUD, engraved letters.
+- Prefer environments without lettering (open ocean, sky, fog, interiors without posters).
+
 - motion_prompt: subtle cinematic motion only (pan/tilt/push/parallax), no cuts.
 - Keep character wardrobe/face descriptors identical across scenes when mode is character.
 """
+
+
+def _enrich_visual_prompt(visual: str, narration: str, topic: str) -> str:
+    """Append hard anti-text + light mood bias when topic/narration sounds dark."""
+    blob = f"{topic} {narration} {visual}".lower()
+    dark_keys = (
+        "mystery", "mysterious", "dark", "secret", "disappear", "missing", "death",
+        "danger", "fear", "eerie", "haunted", "crash", "bermuda", "triangle",
+        "conspiracy", "horror", "tragedy", "lost", "vanish", "storm", "रहस्य",
+        "खतरा", "गायब", "अंधेरा", "डर",
+    )
+    parts = [visual.strip()]
+    if any(k.lower() in blob for k in dark_keys):
+        parts.append(
+            "moody lighting, mysterious atmosphere, dramatic grading, "
+            "tense documentary mood, no cheerful vacation aesthetic"
+        )
+    parts.append(
+        "clean frame with no text, no letters, no watermark, no logo, no signage"
+    )
+    return ", ".join(p for p in parts if p)
 
 
 def generate_screenplay(job: TopicJob, scene_count: int | None = None) -> Screenplay:
@@ -140,10 +177,15 @@ def _parse_screenplay(data: dict[str, Any], fallback_title: str) -> Screenplay:
         motion = str(item.get("motion_prompt") or item.get("motion") or "").strip()
         if not narration and not visual:
             continue
+        visual = _enrich_visual_prompt(
+            visual or "cinematic establishing shot",
+            narration,
+            fallback_title,
+        )
         scenes.append(
             Scene(
                 narration=narration or "...",
-                visual_prompt=visual or "cinematic establishing shot",
+                visual_prompt=visual,
                 motion_prompt=motion or "slow cinematic push-in",
             )
         )

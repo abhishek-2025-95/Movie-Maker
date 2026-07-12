@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import textwrap
 from pathlib import Path
 
 # Pillow>=10 removed Image.ANTIALIAS; MoviePy 1.0.3 still references it.
@@ -28,9 +27,12 @@ def _first_bgm() -> Path | None:
 
 def _load_font(size: int = 42) -> ImageFont.ImageFont:
     candidates = [
+        r"C:\Windows\Fonts\segoeuib.ttf",  # Segoe UI Bold — cleaner short-form look
+        r"C:\Windows\Fonts\seguisb.ttf",
+        r"C:\Windows\Fonts\arialbd.ttf",
+        r"C:\Windows\Fonts\NirmalaB.ttf",
+        r"C:\Windows\Fonts\Nirmala.ttf",
         r"C:\Windows\Fonts\arial.ttf",
-        r"C:\Windows\Fonts\seguiemj.ttf",
-        r"C:\Windows\Fonts\Nirmala.ttf",  # good Hindi coverage on Windows
         r"C:\Windows\Fonts\tahoma.ttf",
     ]
     for path in candidates:
@@ -42,27 +44,107 @@ def _load_font(size: int = 42) -> ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
+def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> int:
+    bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=6)
+    return bbox[2] - bbox[0]
+
+
+def wrap_caption_by_pixels(
+    text: str,
+    draw: ImageDraw.ImageDraw,
+    font: ImageFont.ImageFont,
+    max_width_px: int,
+    max_lines: int = 4,
+) -> str:
+    """Word-boundary wrap to a pixel width — never cuts mid-word with [:N]."""
+    words = text.strip().replace("\n", " ").split()
+    if not words:
+        return ""
+
+    lines: list[str] = []
+    current: list[str] = []
+    for word in words:
+        trial = " ".join(current + [word])
+        if _text_width(draw, trial, font) <= max_width_px or not current:
+            current.append(word)
+            continue
+        lines.append(" ".join(current))
+        current = [word]
+        if len(lines) >= max_lines:
+            current = []
+            break
+    if current and len(lines) < max_lines:
+        lines.append(" ".join(current))
+
+    # If a single word is wider than the box, shrink is handled by caller via font size.
+    return "\n".join(lines)
+
+
+def _fit_caption(
+    text: str,
+    draw: ImageDraw.ImageDraw,
+    frame_w: int,
+    max_box_w: int,
+) -> tuple[str, ImageFont.ImageFont]:
+    """Shrink font until full caption wraps cleanly within max lines / width."""
+    raw = text.strip()
+    for size in (46, 42, 38, 34, 30, 26):
+        font = _load_font(size)
+        wrapped = wrap_caption_by_pixels(raw, draw, font, max_box_w, max_lines=4)
+        # Verify no word was dropped: compare token counts loosely
+        if len(wrapped.replace("\n", " ").split()) >= min(len(raw.split()), 1):
+            # Prefer versions that keep almost all words
+            kept = len(wrapped.replace("\n", " ").split())
+            if kept >= len(raw.split()) or size <= 30:
+                if kept < len(raw.split()) and size > 26:
+                    continue
+                return wrapped, font
+    font = _load_font(26)
+    return wrap_caption_by_pixels(raw, draw, font, max_box_w, max_lines=5), font
+
+
 def _caption_overlay_clip(text: str, width: int, height: int, duration: float):
-    """Pillow-rendered caption — no ImageMagick required."""
+    """Pillow-rendered caption — full text, word-safe wrap, stroked for readability."""
     import numpy as np
     from moviepy.editor import ImageClip
 
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    font = _load_font(42 if width >= 700 else 32)
-    wrapped = textwrap.fill(text.strip()[:140], width=28 if width < 900 else 40)
-    # Measure text block
-    bbox = draw.multiline_textbbox((0, 0), wrapped, font=font, align="center", spacing=6)
+    max_box_w = int(width * 0.88)
+    wrapped, font = _fit_caption(text, draw, width, max_box_w)
+
+    bbox = draw.multiline_textbbox((0, 0), wrapped, font=font, align="center", spacing=8)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     x = (width - tw) // 2
-    y = int(height * 0.78) - th // 2
-    pad = 18
+    y = int(height * 0.76) - th // 2
+    pad_x, pad_y = 22, 16
+
+    # Soft plate behind text (less "basic box", still readable on busy frames)
     draw.rounded_rectangle(
-        (x - pad, y - pad, x + tw + pad, y + th + pad),
-        radius=16,
-        fill=(0, 0, 0, 150),
+        (x - pad_x, y - pad_y, x + tw + pad_x, y + th + pad_y),
+        radius=18,
+        fill=(0, 0, 0, 140),
     )
-    draw.multiline_text((x, y), wrapped, font=font, fill=(255, 255, 255, 255), align="center", spacing=6)
+
+    # Stroke then fill for premium short-form readability
+    for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, 1)):
+        draw.multiline_text(
+            (x + ox, y + oy),
+            wrapped,
+            font=font,
+            fill=(0, 0, 0, 220),
+            align="center",
+            spacing=8,
+        )
+    draw.multiline_text(
+        (x, y),
+        wrapped,
+        font=font,
+        fill=(255, 255, 255, 255),
+        align="center",
+        spacing=8,
+    )
+
     arr = np.array(img)
     return ImageClip(arr, ismask=False, transparent=True).set_duration(duration)
 
