@@ -1,0 +1,4 @@
+mode:faceless ratio:9:16 lang:en | How quantum computing will change everyday life by 2030
+mode:character ratio:16:9 lang:en | A lone detective hunts a stolen AI chip through neon Mumbai rain
+mode:faceless ratio:9:16 lang:hi | अगर पृथ्वी 5 सेकंड के लिए घूमना बंद कर दे तो क्या होगा
+mode:character ratio:9:16 lang:hi | एक युवा वैज्ञानिक समय यात्रा मशीन बना लेती है

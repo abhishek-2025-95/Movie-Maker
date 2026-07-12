@@ -14,6 +14,7 @@ if not hasattr(Image, "ANTIALIAS"):
 import config
 from comfy_runner import (
     WorkflowNotFoundError,
+    _set_input,
     apply_scene_to_workflow,
     load_workflow,
     pick_best_output,
@@ -81,9 +82,9 @@ def run_topic(job: TopicJob, *, dry_run: bool = False, client_id: str | None = N
         encoding="utf-8",
     )
 
-    # Wan native graph is happier at moderate res; keep Flux higher then downscale for I2V.
     width, height = config.RATIO_SIZES[job.ratio]
-    wan_w, wan_h = (640, 1136) if job.ratio == "9:16" else (1136, 640)
+    wan_w, wan_h = config.WAN_SIZES.get(job.ratio, (480, 832))
+    wan_length = config.WAN_LENGTH
     clip_paths: list[Path] = []
     narr_paths: list[Path] = []
     captions: list[str] = []
@@ -174,6 +175,8 @@ def run_topic(job: TopicJob, *, dry_run: bool = False, client_id: str | None = N
                     reference_image_name=start_name,
                     node_map=config.NODE_MAP_WAN,
                 )
+                if config.NODE_MAP_WAN.get("width"):
+                    _set_input(wan_wf, config.NODE_MAP_WAN["width"], "length", wan_length)
                 _pid2, wan_outs = run_workflow(wan_wf, client_id=cid)
                 best = pick_best_output(wan_outs, prefix)
             else:

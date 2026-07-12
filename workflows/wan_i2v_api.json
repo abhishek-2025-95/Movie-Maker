@@ -123,9 +123,9 @@
         "10",
         0
       ],
-      "width": 640,
-      "height": 640,
-      "length": 81,
+      "width": 480,
+      "height": 832,
+      "length": 49,
       "batch_size": 1
     }
   },

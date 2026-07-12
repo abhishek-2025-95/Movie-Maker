@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -41,39 +42,73 @@ def queue_prompt(
         return json.loads(resp.read())
 
 
+def _history_done(prompt_id: str, server: str) -> bool:
+    try:
+        hist = http_get_json(f"http://{server}/history/{prompt_id}", timeout=10)
+    except Exception:
+        return False
+    return bool(hist.get(prompt_id))
+
+
 def track_execution(
     prompt_id: str,
     server_address: str | None = None,
     client_id: str | None = None,
     timeout_s: float = 1800.0,
 ) -> None:
-    """Block until ComfyUI finishes the given prompt_id."""
-    import time
+    """Block until ComfyUI finishes the given prompt_id.
 
+    Prefers WebSocket events; falls back to HTTP history polling if the
+    socket drops (common on long Wan renders / VRAM pressure).
+    """
     server = server_address or config.COMFYUI_HOST
     cid = client_id or new_client_id()
-    ws = websocket.WebSocket()
-    ws.settimeout(30)
-    ws.connect(f"ws://{server}/ws?clientId={cid}")
     start = time.time()
-    try:
-        while True:
-            if time.time() - start > timeout_s:
-                raise TimeoutError(f"ComfyUI job {prompt_id} timed out after {timeout_s}s")
+
+    def remaining() -> float:
+        return timeout_s - (time.time() - start)
+
+    while remaining() > 0:
+        if _history_done(prompt_id, server):
+            return
+
+        ws = websocket.WebSocket()
+        ws.settimeout(30)
+        try:
+            ws.connect(f"ws://{server}/ws?clientId={cid}")
+            while remaining() > 0:
+                if _history_done(prompt_id, server):
+                    return
+                try:
+                    out = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue
+                except (ConnectionResetError, ConnectionAbortedError, OSError, websocket.WebSocketConnectionClosedException):
+                    break
+                if not isinstance(out, str):
+                    continue
+                try:
+                    message = json.loads(out)
+                except json.JSONDecodeError:
+                    continue
+                if message.get("type") != "executing":
+                    continue
+                data = message.get("data") or {}
+                if data.get("prompt_id") == prompt_id and data.get("node") is None:
+                    return
+        except Exception:
+            # Server may be restarting / busy — poll history
+            time.sleep(2)
+            continue
+        finally:
             try:
-                out = ws.recv()
-            except websocket.WebSocketTimeoutException:
-                continue
-            if not isinstance(out, str):
-                continue
-            message = json.loads(out)
-            if message.get("type") != "executing":
-                continue
-            data = message.get("data") or {}
-            if data.get("prompt_id") == prompt_id and data.get("node") is None:
-                return
-    finally:
-        ws.close()
+                ws.close()
+            except Exception:
+                pass
+
+        time.sleep(2)
+
+    raise TimeoutError(f"ComfyUI job {prompt_id} timed out after {timeout_s}s")
 
 
 def get_history(prompt_id: str, server_address: str | None = None) -> dict:

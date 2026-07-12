@@ -30,14 +30,23 @@ OLLAMA_MODEL = "llama3.1:8b"  # deepseek-r1:8b also available
 DEFAULT_MODE = "faceless"  # faceless | character
 DEFAULT_RATIO = "9:16"  # 9:16 | 16:9
 DEFAULT_LANG = "en"  # en | hi
-SCENES_PER_VIDEO = 6
+SCENES_PER_VIDEO = 2  # first production pass; raise to 6 after smoke succeeds
 SECONDS_PER_SCENE = 5
 FPS = 24
 
 RATIO_SIZES = {
-    "9:16": (768, 1344),
-    "16:9": (1344, 768),
+    # Generation sizes tuned for RTX 5070 12GB (editor still outputs target aspect)
+    "9:16": (576, 1024),
+    "16:9": (1024, 576),
 }
+
+# Wan I2V native sizes / frames (keep modest for VRAM)
+WAN_SIZES = {
+    "9:16": (480, 832),
+    "16:9": (832, 480),
+}
+WAN_LENGTH = 49  # ~3s at 16fps; safer than 81 on 12GB
+FLUX_STEPS = 12  # quality/speed balance on 5070
 
 # Cinematic modifiers appended to every Flux prompt
 CINEMATIC_SUFFIX = (
@@ -60,7 +69,7 @@ NODE_MAP_FLUX = {
 NODE_MAP_WAN = {
     "positive_prompt": "19",
     "negative_prompt": "20",
-    "ksampler_seed": "22",  # high-noise sampler; low-noise seed synced in comfy_runner
+    "ksampler_seed": "22",  # seeds synced across all KSamplers in comfy_runner
     "save_prefix": "26",
     "ipadapter_image": "10",  # LoadImage start frame
     "width": "21",
