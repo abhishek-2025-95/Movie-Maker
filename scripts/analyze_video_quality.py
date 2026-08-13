@@ -7,8 +7,10 @@ Usage:
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,10 +24,45 @@ DEFAULT_WORK = ROOT / "temp" / "us_stoop_almost_10s"
 DEFAULT_REPORT = DEFAULT_WORK / "quality_run_report.json"
 
 
+def _ffmpeg() -> str:
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def _ffprobe() -> str:
+    found = shutil.which("ffprobe")
+    if found:
+        return found
+    ffmpeg = Path(_ffmpeg())
+    sibling = ffmpeg.parent / ("ffprobe.exe" if ffmpeg.suffix.lower() == ".exe" else "ffprobe")
+    if sibling.is_file():
+        return str(sibling)
+    return "ffprobe"
+
+
+def find_video(preferred: Path) -> Path | None:
+    if preferred.is_file():
+        return preferred
+    out_dir = ROOT / "final_outputs"
+    if not out_dir.is_dir():
+        return None
+    mp4s = [p for p in out_dir.glob("*.mp4") if p.is_file() and p.stat().st_size > 10_000]
+    if not mp4s:
+        return None
+    return max(mp4s, key=lambda p: p.stat().st_mtime)
+
+
 def ffprobe_json(path: Path) -> dict:
     raw = subprocess.check_output(
         [
-            "ffprobe",
+            _ffprobe(),
             "-v",
             "error",
             "-show_format",
@@ -46,7 +83,7 @@ def extract_frames(video: Path, dest: Path, stamps: list[float]) -> list[Path]:
         png = dest / f"qc_{i:02d}_{t:.2f}s.png"
         subprocess.run(
             [
-                "ffmpeg",
+                _ffmpeg(),
                 "-y",
                 "-ss",
                 f"{max(0.0, t):.3f}",
@@ -128,15 +165,32 @@ def analyze(video: Path, work: Path | None = None) -> dict:
 
 
 def main() -> int:
+    print(f"ROOT={ROOT}", flush=True)
+    print(f"ffmpeg={_ffmpeg()}", flush=True)
+    print(f"ffprobe={_ffprobe()}", flush=True)
     video = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_VIDEO
     if not video.is_absolute():
         video = ROOT / video
-    work = DEFAULT_WORK if video.name.startswith("US_Brooklyn") else video.parent
+    found = find_video(video)
+    if found is None:
+        extras = list((ROOT / "final_outputs").glob("*")) if (ROOT / "final_outputs").is_dir() else []
+        print(f"FATAL Video not found: {video}", flush=True)
+        print(f"final_outputs listing: {[p.name for p in extras]}", flush=True)
+        print("Render first, then analyse the mp4.", flush=True)
+        return 1
+    if found != video:
+        print(f"Using newest mp4 (requested missing): {found}", flush=True)
+    video = found
+    print(f"VIDEO={video} bytes={video.stat().st_size}", flush=True)
+    work = DEFAULT_WORK if "stoop" in video.name.lower() or "Brooklyn" in video.name else video.parent
     try:
         result = analyze(video, work)
     except FileNotFoundError as exc:
         print(f"FATAL {exc}", flush=True)
-        print("Render first, then analyse the mp4.", flush=True)
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(f"FATAL analyze failed: {exc}", flush=True)
+        traceback.print_exc()
         return 1
     print(json.dumps({k: v for k, v in result.items() if k != "report"}, indent=2), flush=True)
     if result.get("report"):
@@ -149,6 +203,7 @@ def main() -> int:
     print("- Soft 480 look vs sharp 1080 faces?", flush=True)
     print("- Hands almost-touch, not a morph smear?", flush=True)
     print("PASS" if result["pass"] else "FAIL", result["checks"], flush=True)
+    print(f"FRAMES_DIR={(work or video.parent) / 'qc_frames'}", flush=True)
     return 0 if result["pass"] else 2
 
 
