@@ -17,6 +17,8 @@ from utils import (
     running_comfy_python,
 )
 
+HF_HUB_SPEC = "huggingface-hub>=1.5.0,<2.0"
+
 
 def _extra_roots() -> list[Path]:
     home = Path.home()
@@ -66,6 +68,41 @@ def diagnose(main_py: Path | None) -> None:
     print(f"resolve_python={py} torch={python_has_torch(py) if py else None}", flush=True)
 
 
+def transformers_import_error(py: Path) -> str | None:
+    """Return stderr if `import transformers` fails, else None."""
+    r = subprocess.run(
+        [str(py), "-c", "import transformers"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    if r.returncode == 0:
+        return None
+    return (r.stderr or r.stdout or "import transformers failed").strip()
+
+
+def repair_huggingface_hub(py: Path) -> int:
+    """Install the hub range current transformers requires (seen: 1.4.1 vs >=1.5)."""
+    cmd = [str(py), "-m", "pip", "install", HF_HUB_SPEC]
+    print("REPAIR", " ".join(cmd), flush=True)
+    return int(subprocess.call(cmd))
+
+
+def ensure_transformers(py: Path) -> None:
+    err = transformers_import_error(py)
+    if err is None:
+        print("transformers import OK", flush=True)
+        return
+    print("transformers import failed:", err.splitlines()[-1] if err else err, flush=True)
+    if repair_huggingface_hub(py) != 0:
+        raise RuntimeError(f"pip install {HF_HUB_SPEC} failed")
+    err2 = transformers_import_error(py)
+    if err2 is not None:
+        raise RuntimeError(f"transformers still broken after hub repair:\n{err2}")
+    print("transformers import OK after hub repair", flush=True)
+
+
 def main() -> int:
     if comfyui_reachable():
         print("ComfyUI already healthy at http://127.0.0.1:8188 — leave it running.", flush=True)
@@ -89,6 +126,12 @@ def main() -> int:
         py = Path(config.COMFYUI_PYTHON)
     if not py.is_file():
         print(f"FATAL: no python.exe to launch Comfy ({py})", flush=True)
+        return 1
+
+    try:
+        ensure_transformers(py)
+    except RuntimeError as exc:
+        print(f"FATAL {exc}", flush=True)
         return 1
 
     args = list(

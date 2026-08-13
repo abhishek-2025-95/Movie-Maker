@@ -28,3 +28,18 @@ def test_find_main_none(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "COMFYUI_ROOT", missing.parent)
     monkeypatch.setattr(sc, "_extra_roots", lambda: [missing.parent])
     assert sc.find_main() is None
+
+
+def test_repair_huggingface_hub_uses_required_spec(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_call(cmd, **kwargs):
+        calls.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(sc.subprocess, "call", fake_call)
+    py = Path(r"C:\Python311\python.exe")
+    assert sc.repair_huggingface_hub(py) == 0
+    assert calls and "huggingface-hub>=1.5.0,<2.0" in calls[0]
+    assert calls[0][:3] == [str(py), "-m", "pip"]
+    assert sc.HF_HUB_SPEC == "huggingface-hub>=1.5.0,<2.0"

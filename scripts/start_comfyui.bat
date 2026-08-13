@@ -7,9 +7,10 @@ set "DXPY=%CD%\.venv\Scripts\python.exe"
 if exist "%DXPY%" (
   echo Using DirectorX helper to start ComfyUI...
   "%DXPY%" -u scripts\start_comfyui.py
-  echo EXIT %ERRORLEVEL%
+  set "ERR=%ERRORLEVEL%"
+  echo EXIT %ERR%
   pause
-  goto :eof
+  exit /b %ERR%
 )
 
 set "COMFY=C:\ComfyUI"
