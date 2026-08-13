@@ -32,7 +32,7 @@ echo "========================================"
 # Clear any leftover command, then start the render with logging.
 "${TMUX[@]}" send-keys -t "$SESSION:0.0" C-c 2>/dev/null || true
 "${TMUX[@]}" send-keys -t "$SESSION:0.0" \
-  "cd '$ROOT' && $PY -u scripts/render_us_stoop_almost_10s.py 2>&1 | tee -a '$LOG'; echo EXIT \$? | tee -a '$LOG'" \
+  "cd '$ROOT' && set -o pipefail && $PY -u scripts/render_us_stoop_almost_10s.py 2>&1 | tee -a '$LOG'; echo EXIT \$? | tee -a '$LOG'" \
   C-m
 
 echo "Launched in tmux session '$SESSION'."
