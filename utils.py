@@ -184,22 +184,159 @@ def unload_ollama_gpu_models() -> None:
             log.warning("Failed to unload Ollama model %s: %s", name, exc)
 
 
-def restart_comfyui(*, wait_sec: float | None = None) -> bool:
-    """Kill and relaunch ComfyUI — only reliable VRAM reset on 12GB lowvram."""
-    import logging
-    import subprocess
-    import urllib.request
+def python_from_comfy_launch_bats(root: Path) -> list[Path]:
+    """Parse run_nvidia_gpu.bat etc. for the real Comfy interpreter."""
+    out: list[Path] = []
+    if not root.is_dir():
+        return out
+    bats = list(root.glob("run*.bat")) + list(root.glob("*.bat"))
+    for bat in bats:
+        try:
+            text = bat.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        if "main.py" not in text.lower() or "python" not in text.lower():
+            continue
+        for raw in text.replace("'", " ").replace('"', " ").split():
+            token = raw.strip().strip("\\")
+            token = token.replace("\\", "/")
+            if token.startswith("./"):
+                token = token[2:]
+            if not token.lower().endswith("python.exe"):
+                continue
+            p = Path(token)
+            if not p.is_absolute():
+                p = root / token
+            out.append(p)
+    return out
 
-    log = logging.getLogger(__name__)
-    host = config.COMFYUI_HOST
+
+def python_has_torch(py: Path) -> bool:
+    """True if this interpreter can import torch (Comfy's env, not DirectorX .venv)."""
+    import subprocess
+
+    try:
+        r = subprocess.run(
+            [str(py), "-c", "import torch"],
+            capture_output=True,
+            timeout=25,
+            check=False,
+        )
+    except Exception:
+        return False
+    return r.returncode == 0
+
+
+def comfy_python_candidates(*, running_exe: Path | None = None) -> list[Path]:
+    """Preferred Pythons to relaunch ComfyUI (portable embed first, then config)."""
     main_py = Path(getattr(config, "COMFYUI_MAIN", r"C:\ComfyUI\main.py"))
-    py = Path(
+    root = main_py.parent
+    configured = Path(
         getattr(
             config,
             "COMFYUI_PYTHON",
             r"C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe",
         )
     )
+    ordered = [
+        running_exe,
+        *python_from_comfy_launch_bats(root),
+        root / "python_embeded" / "python.exe",
+        root / "python_embedded" / "python.exe",
+        root.parent / "python_embeded" / "python.exe",
+        root / "venv" / "Scripts" / "python.exe",
+        root / ".venv" / "Scripts" / "python.exe",
+        configured,
+    ]
+    out: list[Path] = []
+    seen: set[str] = set()
+    for p in ordered:
+        if p is None:
+            continue
+        key = str(p).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(Path(p))
+    return out
+
+
+def running_comfy_python() -> Path | None:
+    """If ComfyUI is already running, return that process's python.exe."""
+    try:
+        import psutil  # type: ignore
+    except Exception:
+        return None
+    for proc in psutil.process_iter(["pid", "cmdline", "exe"]):
+        try:
+            cmd = " ".join(proc.info.get("cmdline") or [])
+        except Exception:
+            continue
+        if "ComfyUI" not in cmd or "main.py" not in cmd:
+            continue
+        exe = proc.info.get("exe")
+        if exe:
+            p = Path(exe)
+            if p.is_file():
+                return p
+    return None
+
+
+def resolve_comfy_python(*, running_exe: Path | None = None, require_torch: bool = False) -> Path | None:
+    import logging
+
+    log = logging.getLogger(__name__)
+    for p in comfy_python_candidates(running_exe=running_exe):
+        if not p.is_file():
+            continue
+        if require_torch and not python_has_torch(p):
+            log.info("skip Comfy python without torch: %s", p)
+            continue
+        return p
+    return None
+
+
+def wait_comfy_healthy(*, wait_sec: float, progress: bool = False) -> bool:
+    import urllib.request
+
+    host = config.COMFYUI_HOST
+    start = time.time()
+    deadline = start + max(1.0, float(wait_sec))
+    last_print = -10.0
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://{host}/system_stats", timeout=3) as resp:
+                if 200 <= getattr(resp, "status", 200) < 300:
+                    return True
+        except Exception:
+            elapsed = time.time() - start
+            if progress and elapsed - last_print >= 10:
+                print(
+                    f"COMFY_WAIT {int(elapsed)}s/{int(wait_sec)}s "
+                    f"http://{host}/system_stats",
+                    flush=True,
+                )
+                last_print = elapsed
+            time.sleep(2)
+    return False
+
+
+def restart_comfyui(*, wait_sec: float | None = None) -> bool:
+    """Kill and relaunch ComfyUI — only reliable VRAM reset on 12GB lowvram."""
+    import logging
+    import subprocess
+    import sys
+
+    log = logging.getLogger(__name__)
+    host = config.COMFYUI_HOST
+    main_py = Path(getattr(config, "COMFYUI_MAIN", r"C:\ComfyUI\main.py"))
+    # Snapshot the live interpreter BEFORE kill — portable Comfy uses python_embeded,
+    # not the system Python311 path in config.
+    live_py = running_comfy_python()
+    py = resolve_comfy_python(running_exe=live_py, require_torch=True)
+    if py is None:
+        # Last resort: file exists even if torch probe failed (slow/antivirus).
+        py = resolve_comfy_python(running_exe=live_py, require_torch=False)
     # Stop existing ComfyUI listeners (force — wedged procs ignore graceful kill).
     try:
         import psutil  # type: ignore
@@ -240,48 +377,33 @@ def restart_comfyui(*, wait_sec: float | None = None) -> bool:
     except Exception as exc:  # noqa: BLE001
         log.warning("ComfyUI kill fallback failed: %s", exc)
 
-    if not py.exists() or not main_py.exists():
+    if py is None or not py.exists() or not main_py.exists():
         log.error("ComfyUI restart paths missing: py=%s main=%s", py, main_py)
         return False
 
     # Must NOT redirect stdout/stderr to DEVNULL — Comfy tqdm flush hits Errno 22 and dies.
-    # 5070 GGUF profile: --normalvram (T5 on CPU). Legacy FP8 path can still set COMFY_LAUNCH_ARGS.
+    # Visible new console so a crash is obvious. Direct Popen (not minimized Start-Process).
     launch_args = tuple(
         getattr(config, "COMFY_LAUNCH_ARGS", None)
         or ("--listen", "127.0.0.1", "--port", "8188", "--normalvram")
     )
-    # PowerShell Start-Process -ArgumentList expects a quoted arg array.
-    arg_list = ",".join(f"'{a}'" for a in (str(main_py), *launch_args))
+    cmd = [str(py), str(main_py), *launch_args]
+    log.info("ComfyUI relaunch cmd=%s live_was=%s torch=%s", cmd, live_py, python_has_torch(py))
+    print(f"COMFY_LAUNCH {' '.join(cmd)}", flush=True)
+    popen_kw: dict = {"cwd": str(main_py.parent), "close_fds": False}
+    if sys.platform == "win32":
+        popen_kw["creationflags"] = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     try:
-        subprocess.Popen(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                (
-                    f"Start-Process -FilePath '{py}' "
-                    f"-ArgumentList @({arg_list}) "
-                    f"-WorkingDirectory '{main_py.parent}' -WindowStyle Minimized"
-                ),
-            ],
-            cwd=str(main_py.parent),
-        )
+        subprocess.Popen(cmd, **popen_kw)
     except Exception as exc:  # noqa: BLE001
         log.error("ComfyUI relaunch failed: %s", exc)
         return False
 
-    deadline = time.time() + float(
-        wait_sec if wait_sec is not None else getattr(config, "COMFY_RESTART_WAIT_SEC", 90.0)
-    )
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(f"http://{host}/system_stats", timeout=2) as resp:
-                if 200 <= getattr(resp, "status", 200) < 300:
-                    log.info("ComfyUI restarted and healthy at %s", host)
-                    return True
-        except Exception:
-            time.sleep(2)
-    log.error("ComfyUI failed to become healthy after restart")
+    wait = float(wait_sec if wait_sec is not None else getattr(config, "COMFY_RESTART_WAIT_SEC", 90.0))
+    if wait_comfy_healthy(wait_sec=wait, progress=True):
+        log.info("ComfyUI restarted and healthy at %s", host)
+        return True
+    log.error("ComfyUI failed to become healthy after restart (python=%s wait=%.0fs)", py, wait)
     return False
 
 
