@@ -3,9 +3,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-SESSION="us-stoop-almost-10s"
-LOG="$ROOT/temp/us_stoop_almost_10s/run.log"
-mkdir -p "$ROOT/temp/us_stoop_almost_10s" "$ROOT/final_outputs"
+SESSION="us-stoop-porch-light"
+LOG="$ROOT/temp/us_stoop_porch_light/run.log"
+mkdir -p "$ROOT/temp/us_stoop_porch_light" "$ROOT/final_outputs"
 
 PY="${ROOT}/.venv/bin/python"
 if [[ ! -x "$PY" ]]; then
@@ -19,10 +19,10 @@ if [[ -f "$TMUX_CONF" ]]; then
 fi
 
 echo "========================================"
-echo " Brooklyn Stoop — The Almost (10s)"
+echo " The Porch Light — waiting is a kind of love (10s)"
 echo " Quality OS: Flux 24 + Wan two-pass 14"
 echo " Log: $LOG"
-echo " Out: $ROOT/final_outputs/US_Brooklyn_Stoop_Almost_10s.mp4"
+echo " Out: $ROOT/final_outputs/US_Porch_Light_Waiting_10s.mp4"
 echo " tmux session: $SESSION"
 echo "========================================"
 

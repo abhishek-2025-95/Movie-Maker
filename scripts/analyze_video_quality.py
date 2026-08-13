@@ -2,7 +2,7 @@
 
 Usage:
   python -u scripts/analyze_video_quality.py
-  python -u scripts/analyze_video_quality.py final_outputs\\US_Brooklyn_Stoop_Almost_10s.mp4
+  python -u scripts/analyze_video_quality.py final_outputs\\US_Porch_Light_Waiting_10s.mp4
 """
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from still_qc import is_unusable_still
 
-DEFAULT_VIDEO = ROOT / "final_outputs" / "US_Brooklyn_Stoop_Almost_10s_v2.mp4"
-DEFAULT_WORK = ROOT / "temp" / "us_stoop_almost_10s_v2"
+DEFAULT_VIDEO = ROOT / "final_outputs" / "US_Porch_Light_Waiting_10s.mp4"
+DEFAULT_WORK = ROOT / "temp" / "us_stoop_porch_light"
 DEFAULT_REPORT = DEFAULT_WORK / "quality_run_report.json"
 
 
@@ -182,7 +182,12 @@ def main() -> int:
         print(f"Using newest mp4 (requested missing): {found}", flush=True)
     video = found
     print(f"VIDEO={video} bytes={video.stat().st_size}", flush=True)
-    work = DEFAULT_WORK if "stoop" in video.name.lower() or "Brooklyn" in video.name else video.parent
+    name = video.name.lower()
+    work = (
+        DEFAULT_WORK
+        if any(k in name for k in ("porch", "stoop", "brooklyn", "waiting"))
+        else video.parent
+    )
     try:
         result = analyze(video, work)
     except FileNotFoundError as exc:
@@ -197,11 +202,12 @@ def main() -> int:
         print("\n=== quality_run_report.json ===", flush=True)
         print(json.dumps(result["report"], indent=2), flush=True)
     print("\n=== EYEBALL (open qc_frames) ===", flush=True)
-    print("- Same two faces in first and last frame? (identity lock)", flush=True)
-    print("- Melted face / extra limbs / kiss collapse?", flush=True)
+    print("- Yellow porch lantern in the SAME upper-right place first vs last?", flush=True)
+    print("- Same two faces, six-inch air gap, NOT kissing?", flush=True)
+    print("- Melted face / extra limbs / stitch ghost around 5s?", flush=True)
     print("- Last frame frozen copy of an earlier frame? (freeze-pad)", flush=True)
-    print("- Soft 480 look vs sharp 1080 faces?", flush=True)
-    print("- Hands almost-touch, not a morph smear?", flush=True)
+    print("- End line readable: She never turns it off.?", flush=True)
+    print("- Hair/skin crawl from ESR (sharper ≠ more real)?", flush=True)
     print("PASS" if result["pass"] else "FAIL", result["checks"], flush=True)
     print(f"FRAMES_DIR={(work or video.parent) / 'qc_frames'}", flush=True)
     return 0 if result["pass"] else 2

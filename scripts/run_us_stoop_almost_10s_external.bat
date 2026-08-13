@@ -2,15 +2,15 @@
 setlocal EnableExtensions
 REM Self-locating: works from any cwd. This .bat lives in scripts\
 cd /d "%~dp0.."
-title DirectorX-US-Stoop-Almost-10s
+title DirectorX-US-Porch-Light-10s
 echo ========================================
-echo  Brooklyn Stoop — The Almost v2 (anti-shake 10s)
-echo  Locked-off tripod + last-frame continuation (no crop jump)
+echo  The Porch Light — waiting is a kind of love (10s)
+echo  Yellow lantern always ON / locked-off / last-frame continue
 echo  Quality OS: Flux 24 + Wan two-pass 14 / CFG 4.5 + Real-ESRGAN
 echo  Leave your ComfyUI window OPEN if it is already running.
 echo  Repo: %CD%
-echo  Log: temp\us_stoop_almost_10s_v2\run.log
-echo  Out: final_outputs\US_Brooklyn_Stoop_Almost_10s_v2.mp4
+echo  Log: temp\us_stoop_porch_light\run.log
+echo  Out: final_outputs\US_Porch_Light_Waiting_10s.mp4
 echo ========================================
 if not exist scripts\render_us_stoop_almost_10s.py (
   echo ERROR: render script missing. Checkout branch cursor/us-stoop-romance-10s-db5f
@@ -18,7 +18,7 @@ if not exist scripts\render_us_stoop_almost_10s.py (
   pause
   exit /b 1
 )
-if not exist temp\us_stoop_almost_10s_v2 mkdir temp\us_stoop_almost_10s_v2
+if not exist temp\us_stoop_porch_light mkdir temp\us_stoop_porch_light
 
 set "PY=%CD%\.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=py"
@@ -41,5 +41,5 @@ echo Using: %PY%
 %PY% -u scripts\render_us_stoop_almost_10s.py
 echo.
 echo EXIT %ERRORLEVEL%
-echo Output: %CD%\final_outputs\US_Brooklyn_Stoop_Almost_10s_v2.mp4
+echo Output: %CD%\final_outputs\US_Porch_Light_Waiting_10s.mp4
 pause

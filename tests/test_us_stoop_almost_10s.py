@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import config
 from render_us_stoop_almost_10s import (
     BEATS,
+    CONCEPT,
     HERO_PROMPT,
     LOCK,
     MAN,
@@ -56,7 +57,25 @@ def test_quality_lock_max_path():
     assert q["wan_wh"] == [832, 480]
     assert q["aspect"] == "16:9"
     assert q["audience"] == "US"
+    assert q["concept"] == "the_porch_light"
+    assert q["prop"] == "yellow porch lantern"
     assert_quality_lock()
+
+
+def test_concept_is_not_random_pretty_couple():
+    assert CONCEPT["id"] == "the_porch_light"
+    assert CONCEPT["theme"] == "Waiting is a kind of love"
+    assert CONCEPT["prop"] == "yellow porch lantern"
+    assert CONCEPT["end_line"] == "She never turns it off."
+    blob = f"{LOCK} {SCENE} {HERO_PROMPT} {BEATS[0]['visual']} {BEATS[1]['visual']}".lower()
+    assert "porch lantern" in blob
+    assert "upper-right" in blob
+    assert "always on" in blob
+    assert "waiting" in CONCEPT["theme"].lower() or "wait" in BEATS[0]["id"]
+    assert "kissing" in NEG
+    assert "flickering lamp" in NEG or "lantern moving" in NEG
+    for beat in BEATS:
+        assert "lantern" in beat["motion"].lower() or "lantern" in beat["visual"].lower()
 
 
 def test_us_audience_identity_and_location():
@@ -98,6 +117,18 @@ def test_hero_plate_crops_reuse_pixels(tmp_path, monkeypatch):
     assert plates["hero_tight"].exists()
     tight = Image.open(plates["hero_tight"])
     assert tight.size == Image.open(hero).size
+
+
+def test_end_line_skip_without_font(tmp_path, monkeypatch):
+    import render_us_stoop_almost_10s as stoop
+
+    src = tmp_path / "src.mp4"
+    src.write_bytes(b"x" * 20_000)
+    dest = tmp_path / "out.mp4"
+    monkeypatch.setattr(stoop, "_find_title_font", lambda: None)
+    got = stoop.burn_end_line(src, dest, "She never turns it off.")
+    assert got == dest
+    assert dest.read_bytes() == src.read_bytes()
 
 
 def test_romance_bed_is_stereo_and_alive(tmp_path):

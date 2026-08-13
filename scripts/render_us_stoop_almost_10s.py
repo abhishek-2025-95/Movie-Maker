@@ -1,12 +1,18 @@
-"""US Brooklyn Stoop — The Almost (10.0s cinematic romance).
+"""US Brooklyn stoop — The Porch Light (10.0s cinematic romance).
+
+Concept (not a random pretty couple):
+  Theme: waiting is a kind of love.
+  Prop spine: yellow porch lantern, always ON, same place in frame.
+  Payoff: She never turns it off.
+  Grammar: locked-off tripod, six-inch air gap, no kiss / push-in / wind.
 
 Latest Quality OS path on RTX 5070 12GB:
-  Flux GGUF hero still (24 steps) → optional IP-Adapter plates →
-  Wan 2.2 two-pass MoE (steps ≥14, CFG 4.5) → short xfade →
-  Real-ESRGAN or sleep317-class 1920×1080 grade → real music/Foley bed.
+  Flux GGUF hero still (24 steps) → optional IP-Adapter (same prompt) →
+  Wan 2.2 two-pass MoE (steps ≥14, CFG 4.5) → last-frame continue →
+  Real-ESRGAN or sleep317-class 1920×1080 grade → theme-tied bed + end line.
 
-Hero-plate lock: one two-shot still; every Wan beat starts from that plate
-(or an IP-Adapter / crop of those same pixels). No freeze-pad. No Ken Burns.
+Hero-plate lock: one two-shot still; beat 2 continues from the last frame
+of beat 1. No freeze-pad. No Ken Burns. No crop-jump xfade.
 
 External:
   scripts/run_us_stoop_almost_10s_external.bat
@@ -46,6 +52,7 @@ from pipeline_wan import (
 )
 from quality_os.preflight import check_p1, ipadapter_workflow_ready
 from quality_os.upscale import realesrgan_available, upscale_video_to_master
+from still_qc import hero_passes_concept_qc
 from utils import (
     apply_cinematic_layering,
     comfyui_reachable,
@@ -57,8 +64,21 @@ from utils import (
 
 log = logging.getLogger("us_stoop_10s")
 
-WORK = ROOT / "temp" / "us_stoop_almost_10s_v2"
-OUT = ROOT / "final_outputs" / "US_Brooklyn_Stoop_Almost_10s_v2.mp4"
+WORK = ROOT / "temp" / "us_stoop_porch_light"
+OUT = ROOT / "final_outputs" / "US_Porch_Light_Waiting_10s.mp4"
+
+CONCEPT = {
+    "id": "the_porch_light",
+    "title": "The Porch Light",
+    "theme": "Waiting is a kind of love",
+    "prop": "yellow porch lantern",
+    "end_line": "She never turns it off.",
+    "logline": (
+        "Every night she leaves the yellow lantern on. Tonight he sits under it. "
+        "Neither speaks. Waiting already is the love story."
+    ),
+    "audience": "US",
+}
 
 # 16:9 cinematic master — US film-short, not a vertical reel
 STILL_W, STILL_H = 1344, 768
@@ -69,9 +89,9 @@ WAN_LEN = 81  # 5.0625s @ 16fps (proven 12GB two-pass length)
 XFADE_SEC = 0.125  # 2×5.0625 − 0.125 = 10.000s
 TARGET_SEC = 10.0
 COOLDOWN = 12
-SEED = 20260814
+SEED = 20260815
 BITRATE = getattr(config, "EXPORT_BITRATE", "15000k")
-PREFIX = "stoop10v2"
+PREFIX = "porchlight"
 
 WOMAN = (
     "same young Black American woman every frame identity lock: mid-20s, warm brown skin, "
@@ -84,13 +104,15 @@ MAN = (
     "kind dark brown eyes, SAME FACE every frame"
 )
 SCENE = (
-    "cinematic 16:9 photoreal 35mm, Brooklyn brownstone stoop late August golden hour, "
-    "pink hydrangeas, honey backlight, quiet residential street bokeh, shallow depth of field, "
-    "warm tungsten bounce from brownstone brick, faces sharp readable, locked-off tripod"
+    "cinematic 16:9 photoreal 35mm, Brooklyn brownstone stoop late August dusk, "
+    "sky still holding peach, quiet residential street bokeh, shallow depth of field, "
+    "pink hydrangeas left, vintage yellow porch lantern hanging from the brownstone entry "
+    "ALWAYS ON in the upper-right of frame, warm tungsten bulb, lantern is the visual spine, "
+    "faces sharp readable, locked-off tripod"
 )
 LOCK = (
     f"exactly these two people only: ({WOMAN}) and ({MAN}), contemporary New York summer, "
-    "sitting close on the stoop, US independent-film romance, no modern logos"
+    "sitting close on the stoop under the porch lantern, US independent-film romance, no modern logos"
 )
 NEG = (
     config.FLUX_NEGATIVE_PROMPT
@@ -98,42 +120,49 @@ NEG = (
     "looking at camera, smile at viewer, kissing, lips touching, cheek to cheek, "
     "whispering into ear, faces overlapping, motion blur, ghosting, double exposure, "
     "extra head, second face overlay, melted face, identity morph, deformed hands, "
-    "extra fingers, handheld shake, camera push-in, zoom, smear"
+    "extra fingers, handheld shake, camera push-in, zoom, smear, flickering lamp, "
+    "lantern moving, missing lantern"
 )
 
 HERO_PROMPT = (
-    f"{LOCK}, {SCENE}, stable medium two-shot 35mm, BOTH faces fully visible with a clear "
-    "six-inch air gap between noses, NOT touching, NOT cheek to cheek, looking at each other, "
+    f"{LOCK}, {SCENE}, stable medium two-shot 35mm, yellow porch lantern hanging upper-right "
+    "ALWAYS ON same place, BOTH faces fully visible with a clear six-inch air gap between noses, "
+    "NOT touching, NOT cheek to cheek, both looking at the glowing lantern not the camera, "
     "lips clearly apart, her hand and his hand rest on the brownstone step between them "
-    "clearly readable fingers almost touching, hydrangeas left, honey flare right, "
+    "clearly readable fingers, hydrangeas left, lantern glow right, "
     "sharp faces identity locked, no ghosting"
 )
 
 BEATS = [
     {
-        "id": "b0_hold",
+        "id": "b0_wait",
         "plate": "hero",
         "length": WAN_LEN,
         "cut_in": "start",
-        "visual": HERO_PROMPT + ", locked-off hold, golden hour stillness, faces sharp",
+        "visual": (
+            HERO_PROMPT + ", locked-off hold, they wait under the lantern, lamp steady not flickering, "
+            "dusk stillness, faces sharp"
+        ),
         "motion": (
             "LOCKED-OFF tripod camera NO push-in NO handheld, only tiny blinks and chest breath, "
-            "hydrangea petals barely drift, faces stay in the exact same place identity locked, "
-            "no morph no ghosting no smear"
+            "porch lantern stays in the exact same upper-right place always ON no flicker, "
+            "faces stay in the exact same place identity locked, no morph no ghosting no smear"
         ),
     },
     {
-        "id": "b1_hands",
+        "id": "b1_glance",
         "plate": "continue",
         "length": WAN_LEN,
         "cut_in": "xfade",
         "visual": (
-            HERO_PROMPT + ", same framing same faces, only his fingers slowly closer to hers "
-            "on the stoop, faces still separated by air, sharp"
+            HERO_PROMPT + ", same framing same faces same lantern position, only his fingers slowly "
+            "closer to hers on the stoop, then a tiny shared glance, faces still separated by air, "
+            "lantern still ON upper-right, sharp"
         ),
         "motion": (
-            "LOCKED-OFF tripod SAME framing NO zoom, only his fingers inch toward hers on the stone, "
-            "tiny blinks, faces do not drift, no wind in hair, no morph no ghosting no smear"
+            "LOCKED-OFF tripod SAME framing NO zoom, lantern does not move, no wind in hair, "
+            "only his fingers inch toward hers on the stone, tiny blinks, faces do not drift, "
+            "no morph no ghosting no smear"
         ),
     },
 ]
@@ -163,6 +192,10 @@ def quality_lock() -> dict:
         "wan_wh": [WW, WH],
         "aspect": "16:9",
         "audience": "US",
+        "concept": CONCEPT["id"],
+        "theme": CONCEPT["theme"],
+        "prop": CONCEPT["prop"],
+        "end_line": CONCEPT["end_line"],
     }
 
 
@@ -326,6 +359,83 @@ def flux_still(
     return dest
 
 
+def _find_title_font() -> Path | None:
+    candidates = [
+        Path(r"C:\Windows\Fonts\georgia.ttf"),
+        Path(r"C:\Windows\Fonts\Georgia.ttf"),
+        Path(r"C:\Windows\Fonts\arial.ttf"),
+        Path(r"C:\Windows\Fonts\segoeui.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf"),
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    return None
+
+
+def _ffmpeg_drawtext_path(path: Path) -> str:
+    return str(path).replace("\\", "/").replace(":", "\\:").replace("'", r"\'")
+
+
+def burn_end_line(src: Path, dest: Path, line: str, *, t0: float = 7.65, fade: float = 0.55) -> Path:
+    """Fade in the theme payoff near the end. Skip cleanly if no system font."""
+    font = _find_title_font()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if font is None:
+        print("END_LINE_SKIP no system serif font; copying without overlay", flush=True)
+        if src.resolve() != dest.resolve():
+            shutil.copy2(src, dest)
+        return dest
+    text_file = WORK / "audio" / "end_line.txt"
+    text_file.parent.mkdir(parents=True, exist_ok=True)
+    text_file.write_text(line.strip() + "\n", encoding="utf-8")
+    font_esc = _ffmpeg_drawtext_path(font)
+    text_esc = _ffmpeg_drawtext_path(text_file)
+    # Hold through the last beat; fade in, stay, faint fade on the last 0.3s.
+    alpha = (
+        f"if(lt(t,{t0:.3f}),0,if(lt(t,{t0 + fade:.3f}),(t-{t0:.3f})/{fade:.3f},"
+        f"if(gt(t,{TARGET_SEC - 0.28:.3f}),({TARGET_SEC:.3f}-t)/0.28,1)))"
+    )
+    vf = (
+        f"drawtext=fontfile='{font_esc}':textfile='{text_esc}':"
+        f"fontsize=40:fontcolor=white:borderw=2:bordercolor=black@0.40:"
+        f"x=(w-text_w)/2:y=h-132:alpha='{alpha}'"
+    )
+    r = subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(src),
+            "-vf",
+            vf,
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-crf",
+            "16",
+            "-preset",
+            "slow",
+            "-c:a",
+            "copy",
+            str(dest),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if r.returncode != 0 or not dest.exists() or dest.stat().st_size < 10_000:
+        print(f"END_LINE_FAIL {r.stderr[-400:] if r.stderr else 'unknown'}; copy source", flush=True)
+        if src.resolve() != dest.resolve():
+            shutil.copy2(src, dest)
+        return dest
+    print(f"END_LINE_OK {line!r}", flush=True)
+    return dest
+
+
 def make_plates(hero: Path) -> dict[str, Path]:
     """Same-pixel identity plates via crop of the hero two-shot."""
     from PIL import Image
@@ -415,72 +525,71 @@ def _piano_note(t: np.ndarray, f0: float, t0: float, dur: float, amp: float) -> 
 
 
 def build_romance_bed(dur: float, dest: Path) -> Path:
-    """Warm US-summer score: piano voicing + pad + street Foley + almost-touch heartbeat.
+    """Waiting score: lamp hum + sparse piano + dusk air. Not a kiss sting.
 
+    Theme-tied Foley: 60 Hz lantern, distant street, one soft glance swell.
     Not a single placeholder sine. Mix is stereo WAV for the 10s master.
     """
     sr = 44100
     n = int(math.ceil(dur * sr))
     t = np.arange(n, dtype=np.float64) / sr
-    rng = np.random.default_rng(20260813)
+    rng = np.random.default_rng(20260815)
     audio = np.zeros(n, dtype=np.float64)
 
-    # Distant Brooklyn evening: low rumble + air
-    audio += 0.018 * rng.standard_normal(n)
-    audio += 0.012 * np.sin(2 * np.pi * 48 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.12 * t))
-    # Light summer air / leaves
-    audio += 0.006 * np.sin(2 * np.pi * 9.0 * t) * rng.standard_normal(n)
+    # Distant Brooklyn dusk: low rumble + air
+    audio += 0.016 * rng.standard_normal(n)
+    audio += 0.010 * np.sin(2 * np.pi * 48 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.11 * t))
+    # Porch lantern electrical hum (the motif)
+    lamp = 0.014 * np.sin(2 * np.pi * 60.0 * t) + 0.006 * np.sin(2 * np.pi * 120.0 * t)
+    lamp *= 0.75 + 0.25 * np.sin(2 * np.pi * 0.07 * t)
+    audio += lamp
+    # Light summer air / leaves — no wind-in-hair cue
+    audio += 0.005 * np.sin(2 * np.pi * 8.5 * t) * rng.standard_normal(n)
 
-    # Warm pad (slow Cmaj7 → Am) under the piano
-    pad_env = np.clip(t / 1.4, 0, 1) * np.clip((dur - t) / 1.6, 0, 1)
+    # Warm pad under the wait (Cmaj7 held, not a pop cadence)
+    pad_env = np.clip(t / 1.6, 0, 1) * np.clip((dur - t) / 1.8, 0, 1)
     pad = (
-        0.035 * np.sin(2 * np.pi * 130.81 * t)
-        + 0.028 * np.sin(2 * np.pi * 164.81 * t)
-        + 0.022 * np.sin(2 * np.pi * 196.00 * t)
-        + 0.016 * np.sin(2 * np.pi * 246.94 * t)
+        0.032 * np.sin(2 * np.pi * 130.81 * t)
+        + 0.024 * np.sin(2 * np.pi * 164.81 * t)
+        + 0.018 * np.sin(2 * np.pi * 196.00 * t)
+        + 0.012 * np.sin(2 * np.pi * 246.94 * t)
     )
-    # Slow detune chorus
-    pad += 0.012 * np.sin(2 * np.pi * 131.4 * t + 0.4 * np.sin(2 * np.pi * 0.2 * t))
+    pad += 0.010 * np.sin(2 * np.pi * 131.4 * t + 0.4 * np.sin(2 * np.pi * 0.18 * t))
     audio += pad * pad_env
 
-    # Piano-like voicing across the 10s (C – E – G – B then A – C – E)
+    # Sparse piano: waiting, not a love-sting. Space between notes is the point.
     notes = [
-        (261.63, 0.15, 1.8, 0.11),
-        (329.63, 0.55, 1.6, 0.09),
-        (392.00, 1.05, 1.7, 0.08),
-        (493.88, 1.70, 2.0, 0.07),
-        (220.00, 3.10, 2.2, 0.10),
-        (261.63, 3.55, 1.8, 0.08),
-        (329.63, 4.15, 1.9, 0.07),
-        (392.00, 5.05, 2.4, 0.09),
-        (329.63, 6.20, 2.2, 0.10),
-        (493.88, 6.85, 2.6, 0.11),
-        (523.25, 8.10, 2.4, 0.09),
-        (392.00, 8.70, 2.2, 0.07),
+        (261.63, 0.40, 2.4, 0.10),
+        (329.63, 1.35, 2.2, 0.07),
+        (392.00, 2.80, 2.6, 0.08),
+        (246.94, 4.20, 2.4, 0.07),
+        (329.63, 5.55, 2.8, 0.09),
+        (392.00, 7.15, 2.6, 0.08),
+        (523.25, 8.05, 2.4, 0.07),
+        (392.00, 8.70, 2.2, 0.06),
     ]
     for f0, t0, nd, amp in notes:
         audio += _piano_note(t, f0, t0, nd, amp)
 
-    # Fabric / stone Foley around the almost-touch
-    for t0, amp in ((5.85, 0.045), (6.35, 0.06), (6.9, 0.04)):
+    # Fabric on stone when fingers move (second beat)
+    for t0, amp in ((5.95, 0.038), (6.55, 0.05), (7.15, 0.032)):
         c = int(t0 * sr)
-        span = int(0.18 * sr)
+        span = int(0.16 * sr)
         if 0 <= c < n:
             end = min(n, c + span)
             rustle = rng.standard_normal(end - c) * np.hanning(end - c)
             audio[c:end] += amp * rustle
 
-    # Heartbeat cue as fingers almost meet
-    for beat_t in (6.15, 6.88, 7.62):
+    # One soft glance swell under the end line — not a heartbeat kiss cue
+    for beat_t, amp in ((7.85, 0.032), (8.55, 0.028)):
         c = int(beat_t * sr)
-        span = int(0.14 * sr)
+        span = int(0.22 * sr)
         if 0 <= c < n:
             end = min(n, c + span)
             x = np.linspace(0, np.pi, end - c)
-            audio[c:end] += 0.055 * (np.sin(x) ** 2)
+            audio[c:end] += amp * (np.sin(x) ** 2)
 
     pcm = np.nan_to_num(np.clip(audio, -0.95, 0.95), nan=0.0)
-    # Gentle stereo: pad a hair left, piano slightly right
     left = pcm * 0.98
     right = np.roll(pcm, 18) * 1.00
     stereo = np.column_stack([left, right]).reshape(-1)
@@ -521,6 +630,11 @@ def mux_grade(video: Path, audio: Path, dest: Path) -> Path:
     out.close()
     v.close()
     a.close()
+    titled = dest.with_name(dest.stem + "_titled.mp4")
+    burn_end_line(dest, titled, CONCEPT["end_line"])
+    if titled.exists() and titled.stat().st_size > 10_000 and titled.resolve() != dest.resolve():
+        dest.unlink(missing_ok=True)
+        shutil.move(str(titled), str(dest))
     return dest
 
 
@@ -595,7 +709,9 @@ def main() -> int:
     pf = check_p1(require_realesrgan=False, require_ipadapter=False)
     ipa = ipadapter_workflow_ready()
     esr = realesrgan_available()
-    print("=== US Brooklyn Stoop — The Almost v2 (anti-shake) ===", flush=True)
+    print("=== US Brooklyn Stoop — The Porch Light (waiting is a kind of love) ===", flush=True)
+    print(f"CONCEPT {CONCEPT['title']}: {CONCEPT['theme']} / prop={CONCEPT['prop']}", flush=True)
+    print(f"END_LINE {CONCEPT['end_line']!r}", flush=True)
     print(f"QUALITY {json.dumps(q)}", flush=True)
     print(f"PREFLIGHT ipadapter={ipa} realesrgan={esr} notes={pf.notes}", flush=True)
     print("FLUX", config.resolve_workflow_flux().name, config.gguf_flux_ready(), flush=True)
@@ -618,15 +734,31 @@ def main() -> int:
         seed=SEED,
         reference=None,
     )
+    if not hero_passes_concept_qc(hero):
+        print("HERO_QC_FAIL no lantern hotspot — retry next seed", flush=True)
+        hero.unlink(missing_ok=True)
+        hero = flux_still(
+            prompt=HERO_PROMPT,
+            prefix=f"{PREFIX}_hero_retry",
+            dest=WORK / "stills" / "hero.png",
+            seed=SEED + 17,
+            reference=None,
+        )
+        if not hero_passes_concept_qc(hero):
+            print("HERO_QC_WARN still weak lantern; continuing with this plate", flush=True)
     if ipa:
         print("IPA_HERO refine (same prompt, no new angle)", flush=True)
-        hero = flux_still(
+        refined = flux_still(
             prompt=HERO_PROMPT,
             prefix=f"{PREFIX}_hero_ipa",
             dest=WORK / "stills" / "hero_ipa.png",
             seed=SEED + 3,
             reference=hero,
         )
+        if hero_passes_concept_qc(refined):
+            hero = refined
+        else:
+            print("IPA_QC_FAIL lantern drifted — keep original hero", flush=True)
 
     plates = {"hero": hero}
     print("PLATES", {k: v.name for k, v in plates.items()}, flush=True)
@@ -673,15 +805,16 @@ def main() -> int:
     dur = _ffprobe_dur(OUT)
     report = write_quality_run_report(
         WORK,
-        smoke="us_stoop_almost_10s_v2",
-        topic="Brooklyn Stoop — The Almost",
+        smoke="us_stoop_porch_light",
+        topic="Brooklyn Stoop — The Porch Light",
         niche="Heart-flutter romance / US cinematic short",
         audience="US",
+        concept=CONCEPT,
         beats=beat_meta,
         ipadapter=ipa,
         realesrgan=esr,
-        captions="none",
-        audio="piano_foley_heartbeat_bed",
+        captions=CONCEPT["end_line"],
+        audio="porch_lamp_hum_piano_wait_bed",
         freeze_pad=False,
         output=str(OUT),
         output_wh=[OUT_W, OUT_H],
