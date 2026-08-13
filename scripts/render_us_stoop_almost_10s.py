@@ -46,7 +46,14 @@ from pipeline_wan import (
 )
 from quality_os.preflight import check_p1, ipadapter_workflow_ready
 from quality_os.upscale import realesrgan_available, upscale_video_to_master
-from utils import apply_cinematic_layering, new_client_id, restart_comfyui
+from utils import (
+    apply_cinematic_layering,
+    comfyui_reachable,
+    free_comfyui_memory,
+    new_client_id,
+    restart_comfyui,
+    wait_comfy_healthy,
+)
 
 log = logging.getLogger("us_stoop_10s")
 
@@ -197,19 +204,39 @@ def _ffprobe_dur(path: Path) -> float:
         return 0.0
 
 
-def _ensure_comfy() -> None:
-    import urllib.request
+def _ensure_comfy(*, restart: bool = False) -> None:
+    """Use a healthy Comfy if it's already up. Do not kill a working instance.
 
-    url = f"http://{config.COMFYUI_HOST}/system_stats"
-    for attempt in range(8):
-        try:
-            urllib.request.urlopen(url, timeout=5)
+    The previous path always kill-restarted at job start. That dropped the
+    user's running Comfy and often relaunched it with the wrong Python
+    (system 3.11 instead of Comfy's python_embeded), so /system_stats never
+    came back.
+    """
+    if comfyui_reachable() and not restart:
+        print("COMFY_UP — using already-running instance (skip kill)", flush=True)
+        free_comfyui_memory()
+        return
+    if comfyui_reachable() and restart:
+        print("COMFY_RESTART", flush=True)
+        if restart_comfyui(wait_sec=180) or wait_comfy_healthy(wait_sec=60):
+            print("COMFY_HEALTHY", flush=True)
             return
-        except Exception:
-            time.sleep(2.0 + attempt)
-    print("COMFY_START", flush=True)
-    if not restart_comfyui(wait_sec=float(getattr(config, "COMFY_RESTART_WAIT_SEC", 120))):
-        raise RuntimeError("ComfyUI failed to start")
+        if comfyui_reachable():
+            print("COMFY_UP_AFTER_WAIT", flush=True)
+            return
+        raise RuntimeError(
+            "ComfyUI did not come back after restart. Start it with your usual "
+            "ComfyUI bat (keep that window open), then re-run this script."
+        )
+    print("COMFY_START — API down, launching", flush=True)
+    if restart_comfyui(wait_sec=180) or wait_comfy_healthy(wait_sec=90):
+        print("COMFY_HEALTHY", flush=True)
+        return
+    raise RuntimeError(
+        "ComfyUI is not reachable at 127.0.0.1:8188. Start ComfyUI yourself "
+        "(your usual launcher), wait until the UI loads, then re-run "
+        "scripts\\run_us_stoop_almost_10s_external.bat"
+    )
 
 
 def _pick(prefix: str):
@@ -550,8 +577,8 @@ def main() -> int:
             "(flux1-dev-Q5_K_S + Wan 2.2 MoE Q4 two-pass)."
         )
 
-    print("COMFY_RESTART", flush=True)
-    restart_comfyui(wait_sec=float(getattr(config, "COMFY_RESTART_WAIT_SEC", 120)))
+    print("COMFY_PREFLIGHT", flush=True)
+    _ensure_comfy(restart=False)
 
     hero = flux_still(
         prompt=HERO_PROMPT,

@@ -184,22 +184,101 @@ def unload_ollama_gpu_models() -> None:
             log.warning("Failed to unload Ollama model %s: %s", name, exc)
 
 
-def restart_comfyui(*, wait_sec: float | None = None) -> bool:
-    """Kill and relaunch ComfyUI — only reliable VRAM reset on 12GB lowvram."""
-    import logging
-    import subprocess
-    import urllib.request
-
-    log = logging.getLogger(__name__)
-    host = config.COMFYUI_HOST
+def comfy_python_candidates(*, running_exe: Path | None = None) -> list[Path]:
+    """Preferred Pythons to relaunch ComfyUI (portable embed first, then config)."""
     main_py = Path(getattr(config, "COMFYUI_MAIN", r"C:\ComfyUI\main.py"))
-    py = Path(
+    root = main_py.parent
+    configured = Path(
         getattr(
             config,
             "COMFYUI_PYTHON",
             r"C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe",
         )
     )
+    ordered = [
+        running_exe,
+        root / "python_embeded" / "python.exe",
+        root / "python_embedded" / "python.exe",
+        root / "venv" / "Scripts" / "python.exe",
+        root / ".venv" / "Scripts" / "python.exe",
+        configured,
+    ]
+    out: list[Path] = []
+    seen: set[str] = set()
+    for p in ordered:
+        if p is None:
+            continue
+        key = str(p).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(Path(p))
+    return out
+
+
+def running_comfy_python() -> Path | None:
+    """If ComfyUI is already running, return that process's python.exe."""
+    try:
+        import psutil  # type: ignore
+    except Exception:
+        return None
+    for proc in psutil.process_iter(["pid", "cmdline", "exe"]):
+        try:
+            cmd = " ".join(proc.info.get("cmdline") or [])
+        except Exception:
+            continue
+        if "ComfyUI" not in cmd or "main.py" not in cmd:
+            continue
+        exe = proc.info.get("exe")
+        if exe:
+            p = Path(exe)
+            if p.is_file():
+                return p
+    return None
+
+
+def resolve_comfy_python(*, running_exe: Path | None = None) -> Path | None:
+    for p in comfy_python_candidates(running_exe=running_exe):
+        if p.is_file():
+            return p
+    return None
+
+
+def wait_comfy_healthy(*, wait_sec: float) -> bool:
+    import urllib.request
+
+    host = config.COMFYUI_HOST
+    deadline = time.time() + max(1.0, float(wait_sec))
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://{host}/system_stats", timeout=3) as resp:
+                if 200 <= getattr(resp, "status", 200) < 300:
+                    return True
+        except Exception:
+            time.sleep(2)
+    return False
+
+
+def restart_comfyui(*, wait_sec: float | None = None) -> bool:
+    """Kill and relaunch ComfyUI — only reliable VRAM reset on 12GB lowvram."""
+    import logging
+    import subprocess
+
+    log = logging.getLogger(__name__)
+    host = config.COMFYUI_HOST
+    main_py = Path(getattr(config, "COMFYUI_MAIN", r"C:\ComfyUI\main.py"))
+    # Snapshot the live interpreter BEFORE kill — portable Comfy uses python_embeded,
+    # not the system Python311 path in config.
+    live_py = running_comfy_python()
+    py = resolve_comfy_python(running_exe=live_py)
+    if py is None:
+        py = Path(
+            getattr(
+                config,
+                "COMFYUI_PYTHON",
+                r"C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe",
+            )
+        )
     # Stop existing ComfyUI listeners (force — wedged procs ignore graceful kill).
     try:
         import psutil  # type: ignore
@@ -250,7 +329,7 @@ def restart_comfyui(*, wait_sec: float | None = None) -> bool:
         getattr(config, "COMFY_LAUNCH_ARGS", None)
         or ("--listen", "127.0.0.1", "--port", "8188", "--normalvram")
     )
-    # PowerShell Start-Process -ArgumentList expects a quoted arg array.
+    log.info("ComfyUI relaunch python=%s live_was=%s", py, live_py)
     arg_list = ",".join(f"'{a}'" for a in (str(main_py), *launch_args))
     try:
         subprocess.Popen(
@@ -270,18 +349,11 @@ def restart_comfyui(*, wait_sec: float | None = None) -> bool:
         log.error("ComfyUI relaunch failed: %s", exc)
         return False
 
-    deadline = time.time() + float(
-        wait_sec if wait_sec is not None else getattr(config, "COMFY_RESTART_WAIT_SEC", 90.0)
-    )
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(f"http://{host}/system_stats", timeout=2) as resp:
-                if 200 <= getattr(resp, "status", 200) < 300:
-                    log.info("ComfyUI restarted and healthy at %s", host)
-                    return True
-        except Exception:
-            time.sleep(2)
-    log.error("ComfyUI failed to become healthy after restart")
+    wait = float(wait_sec if wait_sec is not None else getattr(config, "COMFY_RESTART_WAIT_SEC", 90.0))
+    if wait_comfy_healthy(wait_sec=wait):
+        log.info("ComfyUI restarted and healthy at %s", host)
+        return True
+    log.error("ComfyUI failed to become healthy after restart (python=%s wait=%.0fs)", py, wait)
     return False
 
 

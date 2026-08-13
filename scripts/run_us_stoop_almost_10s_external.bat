@@ -7,6 +7,7 @@ echo ========================================
 echo  Brooklyn Stoop — The Almost (10s)
 echo  Quality OS: Flux 24 + IP-Adapter (if ready)
 echo  Wan two-pass 14 / CFG 4.5 + 1080 master
+echo  Leave your ComfyUI window OPEN if it is already running.
 echo  Repo: %CD%
 echo  Log: temp\us_stoop_almost_10s\run.log
 echo  Out: final_outputs\US_Brooklyn_Stoop_Almost_10s.mp4
