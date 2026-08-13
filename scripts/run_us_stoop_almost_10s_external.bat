@@ -4,13 +4,13 @@ REM Self-locating: works from any cwd. This .bat lives in scripts\
 cd /d "%~dp0.."
 title DirectorX-US-Stoop-Almost-10s
 echo ========================================
-echo  Brooklyn Stoop — The Almost (10s)
-echo  Quality OS: Flux 24 + IP-Adapter (if ready)
-echo  Wan two-pass 14 / CFG 4.5 + 1080 master
+echo  Brooklyn Stoop — The Almost v2 (anti-shake 10s)
+echo  Locked-off tripod + last-frame continuation (no crop jump)
+echo  Quality OS: Flux 24 + Wan two-pass 14 / CFG 4.5 + Real-ESRGAN
 echo  Leave your ComfyUI window OPEN if it is already running.
 echo  Repo: %CD%
-echo  Log: temp\us_stoop_almost_10s\run.log
-echo  Out: final_outputs\US_Brooklyn_Stoop_Almost_10s.mp4
+echo  Log: temp\us_stoop_almost_10s_v2\run.log
+echo  Out: final_outputs\US_Brooklyn_Stoop_Almost_10s_v2.mp4
 echo ========================================
 if not exist scripts\render_us_stoop_almost_10s.py (
   echo ERROR: render script missing. Checkout branch cursor/us-stoop-romance-10s-db5f
@@ -18,7 +18,7 @@ if not exist scripts\render_us_stoop_almost_10s.py (
   pause
   exit /b 1
 )
-if not exist temp\us_stoop_almost_10s mkdir temp\us_stoop_almost_10s
+if not exist temp\us_stoop_almost_10s_v2 mkdir temp\us_stoop_almost_10s_v2
 
 set "PY=%CD%\.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=py"
@@ -41,5 +41,5 @@ echo Using: %PY%
 %PY% -u scripts\render_us_stoop_almost_10s.py
 echo.
 echo EXIT %ERRORLEVEL%
-echo Output: %CD%\final_outputs\US_Brooklyn_Stoop_Almost_10s.mp4
+echo Output: %CD%\final_outputs\US_Brooklyn_Stoop_Almost_10s_v2.mp4
 pause

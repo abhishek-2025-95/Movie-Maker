@@ -19,8 +19,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from still_qc import is_unusable_still
 
-DEFAULT_VIDEO = ROOT / "final_outputs" / "US_Brooklyn_Stoop_Almost_10s.mp4"
-DEFAULT_WORK = ROOT / "temp" / "us_stoop_almost_10s"
+DEFAULT_VIDEO = ROOT / "final_outputs" / "US_Brooklyn_Stoop_Almost_10s_v2.mp4"
+DEFAULT_WORK = ROOT / "temp" / "us_stoop_almost_10s_v2"
 DEFAULT_REPORT = DEFAULT_WORK / "quality_run_report.json"
 
 

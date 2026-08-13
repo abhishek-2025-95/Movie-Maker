@@ -57,8 +57,8 @@ from utils import (
 
 log = logging.getLogger("us_stoop_10s")
 
-WORK = ROOT / "temp" / "us_stoop_almost_10s"
-OUT = ROOT / "final_outputs" / "US_Brooklyn_Stoop_Almost_10s.mp4"
+WORK = ROOT / "temp" / "us_stoop_almost_10s_v2"
+OUT = ROOT / "final_outputs" / "US_Brooklyn_Stoop_Almost_10s_v2.mp4"
 
 # 16:9 cinematic master — US film-short, not a vertical reel
 STILL_W, STILL_H = 1344, 768
@@ -69,23 +69,24 @@ WAN_LEN = 81  # 5.0625s @ 16fps (proven 12GB two-pass length)
 XFADE_SEC = 0.125  # 2×5.0625 − 0.125 = 10.000s
 TARGET_SEC = 10.0
 COOLDOWN = 12
-SEED = 20260813
+SEED = 20260814
 BITRATE = getattr(config, "EXPORT_BITRATE", "15000k")
+PREFIX = "stoop10v2"
 
 WOMAN = (
     "same young Black American woman every frame identity lock: mid-20s, warm brown skin, "
-    "dark natural curls haloed by sun, small gold hoop earrings, white linen sundress, "
-    "hazel-brown eyes, soft rose lips, SAME FACE every frame"
+    "dark natural curls in a stable halo not crawling, small gold hoop earrings, "
+    "white linen sundress, hazel-brown eyes, soft rose lips, SAME FACE every frame"
 )
 MAN = (
-    "same young white American man every frame identity lock: late-20s, CLEAN-SHAVEN no beard "
-    "no mustache, short chestnut hair, blue chambray shirt sleeves rolled, kind grey-green eyes, "
-    "SAME FACE every frame"
+    "same young Black American man every frame identity lock: late-20s, CLEAN-SHAVEN "
+    "no beard no mustache no stubble, short cropped hair, blue chambray shirt sleeves rolled, "
+    "kind dark brown eyes, SAME FACE every frame"
 )
 SCENE = (
     "cinematic 16:9 photoreal 35mm, Brooklyn brownstone stoop late August golden hour, "
     "pink hydrangeas, honey backlight, quiet residential street bokeh, shallow depth of field, "
-    "warm tungsten bounce from brownstone brick, faces sharp readable"
+    "warm tungsten bounce from brownstone brick, faces sharp readable, locked-off tripod"
 )
 LOCK = (
     f"exactly these two people only: ({WOMAN}) and ({MAN}), contemporary New York summer, "
@@ -94,41 +95,45 @@ LOCK = (
 NEG = (
     config.FLUX_NEGATIVE_PROMPT
     + ", beard, mustache, stubble, cartoon, anime, text, watermark, extra people, crowd, "
-    "looking at camera, smile at viewer, kissing, lips touching, motion blur, ghosting, "
-    "double exposure, melted face, identity morph, deformed hands, extra fingers"
+    "looking at camera, smile at viewer, kissing, lips touching, cheek to cheek, "
+    "whispering into ear, faces overlapping, motion blur, ghosting, double exposure, "
+    "extra head, second face overlay, melted face, identity morph, deformed hands, "
+    "extra fingers, handheld shake, camera push-in, zoom, smear"
 )
 
 HERO_PROMPT = (
-    f"{LOCK}, {SCENE}, medium two-shot, faces inches apart in three-quarter profile, "
-    "eyes locked with shy wanting, lips close but not kissing, her hand and his hand rest "
-    "on the warm brownstone step between them almost touching, hydrangeas left, "
-    "honey flare right, sharp faces identity locked"
+    f"{LOCK}, {SCENE}, stable medium two-shot 35mm, BOTH faces fully visible with a clear "
+    "six-inch air gap between noses, NOT touching, NOT cheek to cheek, looking at each other, "
+    "lips clearly apart, her hand and his hand rest on the brownstone step between them "
+    "clearly readable fingers almost touching, hydrangeas left, honey flare right, "
+    "sharp faces identity locked, no ghosting"
 )
 
 BEATS = [
     {
-        "id": "b0_look",
+        "id": "b0_hold",
         "plate": "hero",
         "length": WAN_LEN,
         "cut_in": "start",
-        "visual": HERO_PROMPT + ", holding the almost, quiet breath, golden hour stillness",
+        "visual": HERO_PROMPT + ", locked-off hold, golden hour stillness, faces sharp",
         "motion": (
-            "soft blinks subtle breath micro lean-in eye flicker hydrangea petals drift "
-            "golden light shimmer faces stay sharp identity locked no morph"
+            "LOCKED-OFF tripod camera NO push-in NO handheld, only tiny blinks and chest breath, "
+            "hydrangea petals barely drift, faces stay in the exact same place identity locked, "
+            "no morph no ghosting no smear"
         ),
     },
     {
-        "id": "b1_almost",
-        "plate": "hero_tight",
+        "id": "b1_hands",
+        "plate": "continue",
         "length": WAN_LEN,
         "cut_in": "xfade",
         "visual": (
-            HERO_PROMPT + ", tighter intimacy, his fingers slowly closer to hers on the stoop, "
-            "wind lifting a curl across her cheek, almost-touch heat, faces sharp"
+            HERO_PROMPT + ", same framing same faces, only his fingers slowly closer to hers "
+            "on the stoop, faces still separated by air, sharp"
         ),
         "motion": (
-            "slow push-in his fingers inch toward hers wind in her hair shallow breath "
-            "almost touch never quite contact faces sharp identity locked no kiss"
+            "LOCKED-OFF tripod SAME framing NO zoom, only his fingers inch toward hers on the stone, "
+            "tiny blinks, faces do not drift, no wind in hair, no morph no ghosting no smear"
         ),
     },
 ]
@@ -285,7 +290,7 @@ def flux_still(
         wf_path = ROOT / "workflows" / "flux_t2i_ipadapter_gguf_api.json"
         nm_path = ROOT / "workflows" / "node_map_flux_ipadapter_gguf.json"
         nm = json.loads(nm_path.read_text(encoding="utf-8")) if nm_path.exists() else config.NODE_MAP_FLUX
-        ref_name = _stage_flux_ref(reference, f"stoop10_{prefix}_ref.png")
+        ref_name = _stage_flux_ref(reference, f"{PREFIX}_{prefix}_ref.png")
         print(f"FLUX_IPA {prefix} ref={ref_name} steps={config.FLUX_STEPS}", flush=True)
     else:
         wf_path = ROOT / "workflows" / "flux_t2i_gguf_api.json"
@@ -371,6 +376,29 @@ def _xfade_pair(a: Path, b: Path, dest: Path, overlap: float) -> Path:
         capture_output=True,
     )
     return dest
+
+
+def _extract_last_frame(mp4: Path, png: Path) -> Path:
+    """Continuation plate: last pixels of the previous Wan clip, same geometry."""
+    png.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-sseof",
+            "-0.08",
+            "-i",
+            str(mp4),
+            "-frames:v",
+            "1",
+            str(png),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    if not png.exists() or png.stat().st_size < 1000:
+        raise RuntimeError(f"last-frame extract failed: {mp4}")
+    return png
 
 
 def _piano_note(t: np.ndarray, f0: float, t0: float, dur: float, amp: float) -> np.ndarray:
@@ -513,7 +541,7 @@ def render_beat(plate: Path, beat: dict, seed: int) -> Path:
         still=plate,
         visual=beat["visual"],
         motion=beat["motion"],
-        prefix=f"stoop10_{beat['id']}",
+        prefix=f"{PREFIX}_{beat['id']}",
         seed=seed,
         neg=NEG,
         ww=WW,
@@ -567,7 +595,7 @@ def main() -> int:
     pf = check_p1(require_realesrgan=False, require_ipadapter=False)
     ipa = ipadapter_workflow_ready()
     esr = realesrgan_available()
-    print("=== US Brooklyn Stoop — The Almost (10s) ===", flush=True)
+    print("=== US Brooklyn Stoop — The Almost v2 (anti-shake) ===", flush=True)
     print(f"QUALITY {json.dumps(q)}", flush=True)
     print(f"PREFLIGHT ipadapter={ipa} realesrgan={esr} notes={pf.notes}", flush=True)
     print("FLUX", config.resolve_workflow_flux().name, config.gguf_flux_ready(), flush=True)
@@ -585,32 +613,36 @@ def main() -> int:
 
     hero = flux_still(
         prompt=HERO_PROMPT,
-        prefix="stoop10_hero",
+        prefix=f"{PREFIX}_hero",
         dest=WORK / "stills" / "hero.png",
         seed=SEED,
         reference=None,
     )
-
-    plates = make_plates(hero)
     if ipa:
-        print("IPA_PLATES from hero lock", flush=True)
-        for i, beat in enumerate(BEATS):
-            plates[beat["plate"]] = flux_still(
-                prompt=beat["visual"],
-                prefix=f"stoop10_plate_{beat['id']}",
-                dest=WORK / "stills" / f"{beat['id']}.png",
-                seed=SEED + 80 + i * 13,
-                reference=hero,
-            )
+        print("IPA_HERO refine (same prompt, no new angle)", flush=True)
+        hero = flux_still(
+            prompt=HERO_PROMPT,
+            prefix=f"{PREFIX}_hero_ipa",
+            dest=WORK / "stills" / "hero_ipa.png",
+            seed=SEED + 3,
+            reference=hero,
+        )
+
+    plates = {"hero": hero}
     print("PLATES", {k: v.name for k, v in plates.items()}, flush=True)
 
     clips: list[Path] = []
     beat_meta = []
+    continue_png = hero
     for i, beat in enumerate(BEATS):
-        print(f"\n=== BEAT {i+1}/{len(BEATS)} {beat['id']} two_pass ===", flush=True)
-        plate = plates[beat["plate"]]
+        print(f"\n=== BEAT {i+1}/{len(BEATS)} {beat['id']} two_pass plate={beat['plate']} ===", flush=True)
+        if beat["plate"] == "continue":
+            plate = continue_png
+        else:
+            plate = plates.get(beat["plate"], hero)
         clip = render_beat(plate, beat, SEED + 1000 + i * 41)
         clips.append(clip)
+        continue_png = _extract_last_frame(clip, WORK / "chunks" / f"{beat['id']}_last.png")
         beat_meta.append(
             {
                 "id": beat["id"],
@@ -641,7 +673,7 @@ def main() -> int:
     dur = _ffprobe_dur(OUT)
     report = write_quality_run_report(
         WORK,
-        smoke="us_stoop_almost_10s",
+        smoke="us_stoop_almost_10s_v2",
         topic="Brooklyn Stoop — The Almost",
         niche="Heart-flutter romance / US cinematic short",
         audience="US",

@@ -65,13 +65,17 @@ def test_us_audience_identity_and_location():
     assert "brownstone" in blob
     assert "american" in blob
     assert "same face" in blob
-    assert "not kissing" in HERO_PROMPT.lower() or "not kissing" in blob
+    assert "not kissing" in HERO_PROMPT.lower() or "lips clearly apart" in HERO_PROMPT.lower()
     assert "kissing" in NEG
     assert "identity morph" in NEG
     assert BEATS[0]["plate"] == "hero"
-    assert BEATS[1]["plate"] == "hero_tight"
+    assert BEATS[1]["plate"] == "continue"
+    assert "ghosting" in NEG
+    assert "locked-off" in BEATS[0]["motion"].lower()
+    assert "push-in" not in BEATS[0]["motion"].lower() or "NO push-in" in BEATS[0]["motion"]
+    assert "air gap" in HERO_PROMPT.lower() or "six-inch" in HERO_PROMPT.lower()
     for beat in BEATS:
-        assert "identity locked" in beat["motion"]
+        assert "identity locked" in beat["motion"] or "faces do not drift" in beat["motion"]
 
 
 def test_no_freeze_pad_config():
