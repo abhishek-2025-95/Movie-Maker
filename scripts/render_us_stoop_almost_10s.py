@@ -218,7 +218,7 @@ def _ensure_comfy(*, restart: bool = False) -> None:
         return
     if comfyui_reachable() and restart:
         print("COMFY_RESTART", flush=True)
-        if restart_comfyui(wait_sec=180) or wait_comfy_healthy(wait_sec=60):
+        if restart_comfyui(wait_sec=180) or wait_comfy_healthy(wait_sec=60, progress=True):
             print("COMFY_HEALTHY", flush=True)
             return
         if comfyui_reachable():
@@ -228,13 +228,16 @@ def _ensure_comfy(*, restart: bool = False) -> None:
             "ComfyUI did not come back after restart. Start it with your usual "
             "ComfyUI bat (keep that window open), then re-run this script."
         )
-    print("COMFY_START — API down, launching", flush=True)
-    if restart_comfyui(wait_sec=180) or wait_comfy_healthy(wait_sec=90):
+    print("COMFY_START — API down. Opening a VISIBLE ComfyUI window.", flush=True)
+    print("If no new window appears, start ComfyUI yourself (run_nvidia_gpu.bat) and wait.", flush=True)
+    launched = restart_comfyui(wait_sec=180)
+    if launched or wait_comfy_healthy(wait_sec=90, progress=True):
         print("COMFY_HEALTHY", flush=True)
         return
     raise RuntimeError(
-        "ComfyUI is not reachable at 127.0.0.1:8188. Start ComfyUI yourself "
-        "(your usual launcher), wait until the UI loads, then re-run "
+        "ComfyUI is not reachable at 127.0.0.1:8188. Start it first with your "
+        "usual Comfy launcher (C:\\ComfyUI\\run_nvidia_gpu.bat), wait until the "
+        "browser UI loads, KEEP THAT WINDOW OPEN, then re-run "
         "scripts\\run_us_stoop_almost_10s_external.bat"
     )
 

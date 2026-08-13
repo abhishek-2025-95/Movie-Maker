@@ -33,6 +33,35 @@ def test_candidates_prefer_running_exe(tmp_path, monkeypatch):
     assert resolve_comfy_python(running_exe=live) == live
 
 
+def test_python_from_comfy_launch_bat(tmp_path, monkeypatch):
+    from utils import python_from_comfy_launch_bats
+
+    root = tmp_path / "ComfyUI"
+    root.mkdir()
+    (root / "run_nvidia_gpu.bat").write_text(
+        ".\\python_embeded\\python.exe -s main.py --windows-standalone-build\n",
+        encoding="utf-8",
+    )
+    found = python_from_comfy_launch_bats(root)
+    assert any("python_embeded" in str(p) for p in found)
+
+
+def test_resolve_skips_missing_torch(tmp_path, monkeypatch):
+    root = tmp_path / "ComfyUI"
+    root.mkdir()
+    (root / "main.py").write_text("x", encoding="utf-8")
+    py = root / "venv" / "Scripts" / "python.exe"
+    py.parent.mkdir(parents=True)
+    py.write_bytes(b"fake")
+    monkeypatch.setattr(config, "COMFYUI_MAIN", root / "main.py")
+    monkeypatch.setattr(config, "COMFYUI_PYTHON", tmp_path / "missing.exe")
+    monkeypatch.setattr("utils.python_has_torch", lambda _p: False)
+    from utils import resolve_comfy_python
+
+    assert resolve_comfy_python(require_torch=True) is None
+    assert resolve_comfy_python(require_torch=False) == py
+
+
 def test_resolve_none_when_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "COMFYUI_MAIN", tmp_path / "nope" / "main.py")
     monkeypatch.setattr(config, "COMFYUI_PYTHON", tmp_path / "missing.exe")
