@@ -1,0 +1,21 @@
+{
+  "ipadapter_loader_node": {
+    "class_type": "IPAdapterUnifiedLoader",
+    "inputs": {
+      "preset": "PLUS (suitable for Flux/SDXL)",
+      "provider": "CUDA"
+    }
+  },
+  "ipadapter_apply_node": {
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "weight": 0.70,
+      "weight_type": "linear",
+      "start_at": 0.0,
+      "end_at": 0.85,
+      "model": ["checkpoint_loader_node", 0],
+      "ipadapter": ["ipadapter_loader_node", 0],
+      "image": ["load_reference_image_node", 0]
+    }
+  }
+}

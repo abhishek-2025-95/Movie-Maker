@@ -1,0 +1,19 @@
+{
+  "niche": "Analog Horror / True Crime Fiction / Found Footage",
+  "topic": "The Glitched Interrogation Tape",
+  "visual_prompt": "Cinematic 9:16 vertical video. Heavy 1990s VHS degradation, tracking lines, and a blinking REC 11/04/98 timestamp in the corner. (0-4s) Black-and-white police CCTV angle from the upper corner of a stark interrogation room. A detective sits across from the suspect, Justin Tawse Brigham, whose face is digitally blurred. (4-8s) The VHS tape tears and glitches with a loud screech. The timestamp abruptly skips forward by 4 hours. When the frame settles, the detective is frozen completely still, staring at an empty chair. The suspect is gone. (8-12s) The camera slowly zooms past the detective into the pitch-black upper corner of the room. The shadows adjust to reveal the suspect is impossibly contorted, clinging to the ceiling corner like a spider, looking directly down at the detective. (12-15s) The digital blur over the suspect face drops, revealing a wide, impossibly stretched, unnatural smile just before the screen violently cuts to loud television static.",
+  "editor_script": {
+    "0-4s": "LEAKED EVIDENCE TAPE: Nov 4th, 1998 - SUSPECT: Justin Tawse Brigham",
+    "4-8s": "Wait for the timestamp to skip...",
+    "8-12s": "WHERE DID HE GO?!",
+    "12-15s": "LOOK AT THE CEILING.",
+    "style": "Retro, pixelated VCR font in stark white with a slight red chromatic aberration, placed near the bottom to avoid obscuring the room."
+  },
+  "audio_script": {
+    "0-4s": "Heavy tape hiss + muffled, unintelligible dialogue echoing in a small room",
+    "4-8s": "Harsh, ear-piercing VHS tracking screech + sudden dead silence",
+    "8-12s": "Low, droning dark ambient synth + faint sound of bones popping/cracking",
+    "12-15s": "Sudden, deafening burst of white noise / TV static jump-scare"
+  },
+  "caption": "There is a reason the department sealed this tape for 25 years...\n\nThe craziest part is that the detective never even noticed they were up there. What would you do if you were in that room?\n\nTag a true crime addict who needs to see this!\n\n#AnalogHorror #TrueCrime #FoundFootage"
+}

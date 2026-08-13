@@ -1,0 +1,10 @@
+{
+  "positive_prompt": "2",
+  "negative_prompt": "3",
+  "ksampler_seed": "5",
+  "save_prefix": "7",
+  "ipadapter_image": "10",
+  "width": "4",
+  "height": "4",
+  "ip_scale": "21"
+}

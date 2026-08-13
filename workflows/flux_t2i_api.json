@@ -5,6 +5,16 @@
       "ckpt_name": "flux1-dev-fp8.safetensors"
     }
   },
+  "9": {
+    "class_type": "FluxGuidance",
+    "inputs": {
+      "guidance": 3.5,
+      "conditioning": [
+        "2",
+        0
+      ]
+    }
+  },
   "2": {
     "class_type": "CLIPTextEncode",
     "inputs": {
@@ -21,7 +31,7 @@
   "3": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "text": "blurry, low quality, watermark, text, logo",
+      "text": "(mutated, extra limbs, multiple heads, deformed anatomy, conjoined bodies:1.5), text, watermark, blurry, low quality, deformed hands, extra fingers, cartoon, anime, cgi, 3d render",
       "clip": [
         "1",
         1
@@ -32,7 +42,7 @@
     }
   },
   "4": {
-    "class_type": "EmptySD3LatentImage",
+    "class_type": "EmptyLatentImage",
     "inputs": {
       "width": 768,
       "height": 1344,
@@ -44,7 +54,7 @@
     "inputs": {
       "seed": 0,
       "steps": 22,
-      "cfg": 3.5,
+      "cfg": 1.0,
       "sampler_name": "euler",
       "scheduler": "simple",
       "denoise": 1.0,
@@ -53,7 +63,7 @@
         0
       ],
       "positive": [
-        "2",
+        "9",
         0
       ],
       "negative": [
@@ -67,7 +77,7 @@
     }
   },
   "6": {
-    "class_type": "VAEDecode",
+    "class_type": "VAEDecodeTiled",
     "inputs": {
       "samples": [
         "5",
@@ -76,13 +86,17 @@
       "vae": [
         "1",
         2
-      ]
+      ],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
     }
   },
   "7": {
     "class_type": "SaveImage",
     "inputs": {
-      "filename_prefix": "dx_flux",
+      "filename_prefix": "dx_still",
       "images": [
         "6",
         0

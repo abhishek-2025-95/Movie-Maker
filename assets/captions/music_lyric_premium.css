@@ -1,0 +1,43 @@
+/* 16:9 lyric MV — Pictex-friendly karaoke (gold active word) */
+.segment {
+  font-family: "Arial Black", "Montserrat", Impact, sans-serif;
+  font-weight: 900;
+  font-size: 56px;
+  color: #ffffff;
+  text-align: center;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  -webkit-text-stroke: 3px #000000;
+  text-shadow:
+    2px 2px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    0 4px 12px rgba(0, 0, 0, 0.85);
+  padding: 0 24px;
+  max-width: 92vw;
+}
+
+.word {
+  display: inline;
+  color: #ffffff;
+  opacity: 0.88;
+  font-weight: 900;
+  -webkit-text-stroke: 3px #000000;
+}
+
+.word-being-narrated {
+  color: #ffcc00 !important;
+  opacity: 1;
+  font-weight: 900;
+  -webkit-text-stroke: 3px #000000;
+  text-shadow:
+    2px 2px 0 #000,
+    0 0 16px rgba(255, 204, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.85);
+}
+
+.word-already-narrated {
+  color: #ffffff;
+  opacity: 0.95;
+}

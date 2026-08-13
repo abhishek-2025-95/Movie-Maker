@@ -1,7 +1,6 @@
-from PIL import Image, ImageDraw
-
-from director import _enrich_visual_prompt
+from director import parse_topic_line, _enrich_visual_prompt
 from editor import wrap_caption_by_pixels, _load_font, _fit_caption
+from PIL import Image, ImageDraw
 
 
 def test_wrap_never_cuts_mid_word():
@@ -27,7 +26,18 @@ def test_enrich_adds_anti_text_and_mood_for_dark_topic():
         "open ocean under storm clouds",
         "Ships vanish without a trace in the Bermuda Triangle.",
         "Bermuda Triangle mysteries",
+        style="live",
     )
     assert "no text" in out.lower()
     assert "mysterious" in out.lower() or "moody" in out.lower()
     assert "cheerful" in out.lower()  # explicitly forbidden aesthetic
+
+
+def test_parse_animated_style():
+    job = parse_topic_line(
+        "mode:character style:animated ratio:9:16 lang:hi | प्यार की कहानी"
+    )
+    assert job is not None
+    assert job.style == "animated"
+    assert job.mode == "character"
+    assert job.lang == "hi"

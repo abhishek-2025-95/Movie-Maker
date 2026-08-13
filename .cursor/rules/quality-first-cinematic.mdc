@@ -1,0 +1,30 @@
+---
+description: Quality-first cinematic mandate — never sacrifice output quality for speed on local 12GB
+alwaysApply: true
+---
+
+# DirectorX — Quality First (No Compromise)
+
+**Hardware:** RTX 5070 12GB local only. Time is unlimited. Speed is never a reason to lower quality.
+
+## Non-negotiables
+
+- Prefer the **highest practical quality** this box can deliver over faster/weaker presets.
+- Do **not** default to proof shortcuts: Wan steps &lt; 14, skip two-pass MoE, freeze-pad, sine-only finals, silent “good enough” exports.
+- Long renders → **external terminal** (never Cursor-tied).
+- Prefer `scripts/wan_two_pass_moe.py` for Wan on 12GB; do not leave main pipeline on single-process dual-UNET if two-pass exists.
+- Before claiming “cinematic / high quality / done”, verify with evidence (frames, ffprobe, run log).
+
+## Max-quality defaults (when building/rendering)
+
+- Flux: ≥22–25 steps; strong hero still before Wan.
+- Wan: two-pass, **steps ≥14**, CFG ~4.0–4.5, native 480p OK → **1080 export** with grade (prefer sleep317-class upscale over bare lanczos).
+- Identity: hero-plate lock minimum; push toward IP-Adapter / character LoRA when weights exist — prompt-only is not “locked”.
+- Audio: real bed / TTS / Foley — no placeholder sine as final.
+- No cloud APIs unless user explicitly asks.
+
+## Forbidden rationalizations
+
+- “Faster for demo” / “proof is enough” / “Q4 is fine so drop steps”
+- Shipping soft 480p without 1080 master when export path exists
+- Skipping face/identity work when the brief needs consistent characters

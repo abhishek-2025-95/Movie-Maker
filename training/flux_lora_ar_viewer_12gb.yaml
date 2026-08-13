@@ -1,0 +1,59 @@
+---
+job: extension
+config:
+  name: dxc_arviewer
+  process:
+    - type: sd_trainer
+      training_folder: "C:\\Users\\user\\Documents\\DirectorX\\temp\\p2_lora_train"
+      device: cuda:0
+      trigger_word: "dxc_arviewer"
+      network:
+        type: lora
+        linear: 16
+        linear_alpha: 16
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+      datasets:
+        - folder_path: "C:\\Users\\user\\Documents\\DirectorX\\assets\\characters\\ar_filter_viewer\\bible"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          resolution: [512, 768]
+      train:
+        batch_size: 1
+        steps: 1500
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: flowmatch
+        optimizer: adamw8bit
+        lr: 1e-4
+        ema_config:
+          use_ema: true
+          ema_decay: 0.99
+        dtype: bf16
+        skip_first_sample: true
+        disable_sampling: true
+      model:
+        name_or_path: "black-forest-labs/FLUX.1-dev"
+        is_flux: true
+        quantize: true
+        low_vram: true
+      sample:
+        sampler: flowmatch
+        sample_every: 99999
+        width: 768
+        height: 1344
+        prompts: []
+        neg: ""
+        seed: 42
+        walk_seed: false
+        guidance_scale: 3.5
+        sample_steps: 20
+meta:
+  name: dxc_arviewer
+  version: "1.0"

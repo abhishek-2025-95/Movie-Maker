@@ -13,7 +13,7 @@
     "inputs": {
       "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
       "type": "wan",
-      "device": "default"
+      "device": "cpu"
     }
   },
   "12": {
@@ -36,33 +36,11 @@
       "weight_dtype": "default"
     }
   },
-  "15": {
-    "class_type": "LoraLoaderModelOnly",
-    "inputs": {
-      "model": [
-        "13",
-        0
-      ],
-      "lora_name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
-      "strength_model": 1.0
-    }
-  },
-  "16": {
-    "class_type": "LoraLoaderModelOnly",
-    "inputs": {
-      "model": [
-        "14",
-        0
-      ],
-      "lora_name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-      "strength_model": 1.0
-    }
-  },
   "17": {
     "class_type": "ModelSamplingSD3",
     "inputs": {
       "model": [
-        "15",
+        "13",
         0
       ],
       "shift": 5.0
@@ -72,7 +50,7 @@
     "class_type": "ModelSamplingSD3",
     "inputs": {
       "model": [
-        "16",
+        "14",
         0
       ],
       "shift": 5.0
@@ -138,8 +116,8 @@
       ],
       "add_noise": "enable",
       "noise_seed": 0,
-      "steps": 4,
-      "cfg": 1.0,
+      "steps": 20,
+      "cfg": 3.5,
       "sampler_name": "euler",
       "scheduler": "simple",
       "positive": [
@@ -155,7 +133,7 @@
         2
       ],
       "start_at_step": 0,
-      "end_at_step": 2,
+      "end_at_step": 10,
       "return_with_leftover_noise": "enable"
     }
   },
@@ -168,8 +146,8 @@
       ],
       "add_noise": "disable",
       "noise_seed": 0,
-      "steps": 4,
-      "cfg": 1.0,
+      "steps": 20,
+      "cfg": 3.5,
       "sampler_name": "euler",
       "scheduler": "simple",
       "positive": [
@@ -184,13 +162,13 @@
         "22",
         0
       ],
-      "start_at_step": 2,
-      "end_at_step": 4,
+      "start_at_step": 10,
+      "end_at_step": 10000,
       "return_with_leftover_noise": "disable"
     }
   },
   "24": {
-    "class_type": "VAEDecode",
+    "class_type": "VAEDecodeTiled",
     "inputs": {
       "samples": [
         "23",
@@ -199,7 +177,11 @@
       "vae": [
         "12",
         0
-      ]
+      ],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
     }
   },
   "25": {
